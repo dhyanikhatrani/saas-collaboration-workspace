@@ -13,6 +13,25 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
+  if (!email.trim()) {
+    alert("Please enter your email.");
+    return;
+  }
+
+  if (!/\S+@\S+\.\S+/.test(email)) {
+    alert("Please enter a valid email address.");
+    return;
+  }
+
+  if (!password.trim()) {
+    alert("Please enter your password.");
+    return;
+  }
+
+  if (password.length < 8) {
+    alert("Password must be at least 8 characters.");
+    return;
+  } 
 
   try {
     setLoading(true);
