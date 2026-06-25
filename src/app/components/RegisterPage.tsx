@@ -18,7 +18,7 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [showPass, setShowPass] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", workspace: "", size: "" });
+  const [form, setForm] = useState({name: "",email: "",password: "",confirmPassword: "",workspace: "",  size: ""});
   const [loading, setLoading] = useState(false);
 
   const handleNext = async (e: React.FormEvent) => {
@@ -182,12 +182,31 @@ export default function RegisterPage() {
                         </button>
                       </div>
                     </div>
+                    <div>
+                        <label className="block text-[#CBD5E1] text-sm mb-2">
+                          Confirm Password
+                        </label>
+
+                        <input
+                          type={showPass ? "text" : "password"}
+                          value={form.confirmPassword}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              confirmPassword: e.target.value,
+                            }))
+                          }
+                          placeholder="Confirm your password"
+                          className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50"
+                        />
+                      </div>
                     <button type="submit" className="w-full bg-[#6366F1] hover:bg-[#5558E8] text-white py-3 rounded-xl font-medium text-sm transition-all hover:shadow-lg hover:shadow-[#6366F1]/30 flex items-center justify-center gap-2 group mt-2">
                       Continue <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   </form>
                 </>
               )}
+
 
               {step === 1 && (
                 <>
