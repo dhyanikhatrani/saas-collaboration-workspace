@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router";
 import {
@@ -15,14 +15,6 @@ const WORKSPACES = [
   { id: "sa", name: "Sales", color: "from-[#10B981] to-[#06B6D4]", unread: 1 },
 ];
 
-// const CHANNELS = [
-//   { id: "general", name: "general", type: "public", unread: 2, pinned: true },
-//   { id: "announcements", name: "announcements", type: "public", unread: 0, pinned: false },
-//   { id: "hiring-queue", name: "hiring-queue", type: "public", unread: 0, pinned: false },
-//   { id: "design-sprint", name: "design-sprint", type: "public", unread: 5, pinned: false },
-//   { id: "dev-ops", name: "dev-ops", type: "private", unread: 0, pinned: false },
-//   { id: "design-tokens", name: "design-tokens", type: "private", unread: 1, pinned: false },
-// ];
 
 const ONLINE_USERS = [
   { name: "Sarah Chen", role: "Product Designer", avatar: "SC", color: "from-[#6366F1] to-[#8B5CF6]", status: "online" },
@@ -32,22 +24,31 @@ const ONLINE_USERS = [
   { name: "Aisha Patel", role: "UX Researcher", avatar: "AP", color: "from-[#F59E0B] to-[#EF4444]", status: "away" },
 ];
 
-const MESSAGES: Record<string, Array<{id: string, user: string, avatar: string, color: string, time: string, content: string, reactions?: Array<{emoji: string, count: number}>, file?: {name: string, size: string}}>> = {
-  general: [
-    { id: "1", user: "Sarah Chen", avatar: "SC", color: "from-[#6366F1] to-[#8B5CF6]", time: "10:23 AM", content: "Hey team! I've updated the Figma file with the new dark mode tokens. Can everyone take a look at the dashboard layouts before the sprint?" },
-    { id: "2", user: "Marcus Rodriguez", avatar: "MR", color: "from-[#06B6D4] to-[#6366F1]", time: "10:26 AM", content: "Looks amazing, Sarah. The deep slate palette is much easier on the eyes. I'll start mapping the Tailwind config now.", reactions: [{emoji: "👍", count: 3}, {emoji: "🚀", count: 2}] },
-    { id: "3", user: "Elena Vasquez", avatar: "EV", color: "from-[#8B5CF6] to-[#EC4899]", time: "10:31 AM", content: "Just had a call with the client. They loved the new direction! We're green-lit for the full redesign. Let's sync at 2pm.", reactions: [{emoji: "🎉", count: 5}] },
-    { id: "4", user: "David Miller", avatar: "DM", color: "from-[#10B981] to-[#06B6D4]", time: "10:45 AM", content: "Design review added to calendar. Also sharing the updated PRD below.", file: {name: "Q3_PRD_v2.pdf", size: "2.4 MB"} },
-    { id: "5", user: "Sarah Chen", avatar: "SC", color: "from-[#6366F1] to-[#8B5CF6]", time: "10:52 AM", content: "Thanks David! Quick question @Marcus — should we go with the glassmorphism cards or the flat design for the analytics section? I'm leaning glass but want a second opinion.", reactions: [{emoji: "🤔", count: 1}] },
-    { id: "6", user: "Marcus Rodriguez", avatar: "MR", color: "from-[#06B6D4] to-[#6366F1]", time: "10:55 AM", content: "Definitely glass. The depth it adds to the dark background is 🔥 Let me mock up both real quick so you have a comparison." },
-  ],
-  "design-sprint": [
-    { id: "1", user: "Aisha Patel", avatar: "AP", color: "from-[#F59E0B] to-[#EF4444]", time: "9:15 AM", content: "Day 2 of the design sprint! Today's goal: finalize the user flow for the onboarding experience. Notes from yesterday: https://worksync.io/docs/sprint-notes" },
-    { id: "2", user: "Sarah Chen", avatar: "SC", color: "from-[#6366F1] to-[#8B5CF6]", time: "9:32 AM", content: "I'll have the wireframes ready by noon. Should we do async feedback or a live session?", reactions: [{emoji: "⏰", count: 2}] },
-  ],
+const PINNED_MSG = "📌 Reminder: Sprint planning Thursday 2PM. Design handoff deadline: Friday EOD.";
+
+const getInitials = (name: string) => {
+  if (!name) return "ME";
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 };
 
-const PINNED_MSG = "📌 Reminder: Sprint planning Thursday 2PM. Design handoff deadline: Friday EOD.";
+const getMessageColor = (name: string) => {
+  const colors = [
+    "from-[#6366F1] to-[#8B5CF6]",
+    "from-[#06B6D4] to-[#6366F1]",
+    "from-[#8B5CF6] to-[#EC4899]",
+    "from-[#10B981] to-[#06B6D4]",
+    "from-[#F59E0B] to-[#EF4444]",
+  ];
+
+  if (!name) return colors[0];
+  const index = name.charCodeAt(0) % colors.length;
+  return colors[index];
+};
 
 type WorkspaceModalProps = {
   onClose: () => void;
@@ -168,14 +169,54 @@ function WorkspaceModal({
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [activeWS, setActiveWS] = useState("pd");
-  const [activeChannel, setActiveChannel] = useState("general");
+  const [activeWS, setActiveWS] = useState("");
+  const [activeChannel, setActiveChannel] = useState("");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<any[]>([]);
   const [userData, setUserData] = useState<any>(null);
 
-useEffect(() => {
+  const getItemId = (item: any) => item?._id ?? item?.id ?? "";
+
+  const mapServerMessage = (msg: any) => ({
+    id: msg._id,
+    user: msg.sender?.name || "Unknown",
+    avatar: getInitials(msg.sender?.name || "Me"),
+    color: getMessageColor(msg.sender?.name || "Me"),
+    time: new Date(msg.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    content: msg.content,
+  });
+
+  const fetchMessages = async (channelId: string) => {
+    if (!channelId) return;
+    console.debug("fetchMessages", channelId);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.get(
+        `http://localhost:5000/api/messages/${channelId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.debug("Loaded messages", res.data?.length, res.data);
+
+      setMessages(res.data.map((msg: any) => mapServerMessage(msg)));
+    } catch (error) {
+      console.error("Failed to load messages", error);
+    }
+  };
+
+  useEffect(() => {
   const fetchDashboard = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -202,7 +243,7 @@ useEffect(() => {
         setWorkspaces(workspaceRes.data);
 
         if (workspaceRes.data.length > 0) {
-          setActiveWS(workspaceRes.data[0]._id);
+          setActiveWS(getItemId(workspaceRes.data[0]));
         }
     } 
     catch (error) {
@@ -230,9 +271,10 @@ useEffect(() => {
       );
 
       setChannels(res.data);
+      console.log("Channels:", res.data);
       if (res.data.length > 0) {
-      setActiveChannel(res.data[0]._id);
-    }
+        setActiveChannel((prev) => prev || getItemId(res.data[0]));
+      }
 
     } catch (error) {
       console.log(error);
@@ -241,35 +283,85 @@ useEffect(() => {
 
   fetchChannels();
 }, [activeWS]);
+
+useEffect(() => {
+  if (!activeChannel) return;
+  fetchMessages(activeChannel);
+}, [activeChannel]);
+
   const [showModal, setShowModal] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [search, setSearch] = useState("");
-  const [messages, setMessages] = useState(MESSAGES);
 
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    const newMsg = {
-      id: Date.now().toString(),
-      user: "You",
-      avatar: "ME",
-      color: "from-[#6366F1] to-[#8B5CF6]",
-      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
-      content: message,
-    };
-    setMessages(prev => ({
-      ...prev,
-      [activeChannel]: [...(prev[activeChannel] || []), newMsg],
-    }));
-    setMessage("");
+  const sendMessage = async () => {
+    
+    if (!message.trim() || !activeChannel) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      if (!activeChannel) {
+        console.warn("sendMessage blocked because activeChannel is empty", { channels });
+        return;
+      }
+
+      console.debug("sendMessage", { activeChannel, message });
+
+      const res = await axios.post(
+        "http://localhost:5000/api/messages/send",
+        {
+          content: message,
+          channelId: activeChannel,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.debug("sendMessage response", res.data);
+
+      const newMessage = res.data?.message || res.data;
+      setMessage("");
+
+      if (newMessage?._id) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: newMessage._id,
+            user: newMessage.sender?.name || "You",
+            avatar: getInitials(newMessage.sender?.name || "You"),
+            color: getMessageColor(newMessage.sender?.name || "You"),
+            time: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            content: newMessage.content,
+          },
+        ]);
+      } else {
+        console.warn("sendMessage did not return a message object", newMessage);
+      }
+
+      await fetchMessages(activeChannel);
+    } catch (error: any) {
+      console.error("Failed to send message", error.response || error);
+    }
   };
 
-  const channelMsgs = messages[activeChannel] || [];
+  const handleSendSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await sendMessage();
+  };
+
+  const channelMsgs = messages;
   const ws: any = workspaces.find(
-    (w: any) => w._id === activeWS
+    (w: any) => getItemId(w) === activeWS
   );
   const currentChannel = channels.find(
-    (c: any) => c._id === activeChannel
+    (c: any) => getItemId(c) === activeChannel
   );
   return (
     <div className="h-screen bg-[#0F172A] flex overflow-hidden text-[#F8FAFC]">
@@ -289,23 +381,26 @@ useEffect(() => {
           <Zap size={16} className="text-white" />
         </div>
         <div className="w-px h-5 bg-[#6366F1]/20 my-1" />
-        {workspaces.map((w: any) => (
-          <div key={w.id} className="relative group" onClick={() => setActiveWS(w._id)}>
-            <div className={`w-10 h-10 rounded-xl cursor-pointer transition-all bg-gradient-to-br ${w.color} ${activeWS === w.id ? 'ring-2 ring-[#6366F1] ring-offset-2 ring-offset-[#0B1120]' : 'opacity-70 hover:opacity-100'}`}
-              title={w.name}>
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {w.name.charAt(0).toUpperCase()}
-                </span>
+        {workspaces.map((w: any) => {
+          const workspaceId = getItemId(w);
+          return (
+            <div key={workspaceId} className="relative group" onClick={() => setActiveWS(workspaceId)}>
+              <div className={`w-10 h-10 rounded-xl cursor-pointer transition-all bg-gradient-to-br ${w.color} ${activeWS === workspaceId ? 'ring-2 ring-[#6366F1] ring-offset-2 ring-offset-[#0B1120]' : 'opacity-70 hover:opacity-100'}`} title={w.name}>
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">
+                    {w.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
               </div>
+              {w.unread > 0 && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#EF4444] border border-[#0B1120] flex items-center justify-center">
+                  <span className="text-white text-xs" style={{fontSize: '9px'}}>{w.unread}</span>
+                </div>
+              )}
             </div>
-            {w.unread > 0 && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#EF4444] border border-[#0B1120] flex items-center justify-center">
-                <span className="text-white text-xs" style={{fontSize: '9px'}}>{w.unread}</span>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
+
         <button onClick={() => setShowModal(true)} className="w-10 h-10 rounded-xl border-2 border-dashed border-[#6366F1]/30 hover:border-[#6366F1]/60 flex items-center justify-center cursor-pointer transition-colors mt-1 group">
           <Plus size={16} className="text-[#6366F1]/50 group-hover:text-[#6366F1] transition-colors" />
         </button>
@@ -344,18 +439,21 @@ useEffect(() => {
             <button className="text-[#475569] hover:text-[#94A3B8] transition-colors"><Plus size={13} /></button>
           </div>
 
-          {channels.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((ch: any) => (
-            <button key={ch._id} onClick={() => setActiveChannel(ch._id)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${activeChannel === ch._id ? 'bg-[#6366F1]/15 text-white' : 'text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white'}`}>
-              {ch.type === "private" ? <Lock size={13} className="flex-shrink-0" /> : <Hash size={13} className="flex-shrink-0" />}
-              <span className="text-xs flex-1 truncate">{ch.name}</span>
-              {ch.unread > 0 && (
-                <div className="w-4 h-4 rounded-full bg-[#6366F1] flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-xs" style={{fontSize: '9px'}}>{ch.unread}</span>
-                </div>
-              )}
-            </button>
-          ))}
+          {channels.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((ch: any) => {
+            const channelId = getItemId(ch);
+            return (
+              <button key={channelId} onClick={() => setActiveChannel(channelId)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${activeChannel === channelId ? 'bg-[#6366F1]/15 text-white' : 'text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white'}`}>
+                {ch.type === "private" ? <Lock size={13} className="flex-shrink-0" /> : <Hash size={13} className="flex-shrink-0" />}
+                <span className="text-xs flex-1 truncate">{ch.name}</span>
+                {ch.unread > 0 && (
+                  <div className="w-4 h-4 rounded-full bg-[#6366F1] flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-xs" style={{fontSize: '9px'}}>{ch.unread}</span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
 
           <div className="px-2 py-1.5 flex items-center justify-between mt-3">
             <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Direct Messages</span>
@@ -509,7 +607,7 @@ useEffect(() => {
                   )}
                   {msg.reactions && msg.reactions.length > 0 && (
                     <div className="flex gap-1.5 mt-2">
-                      {msg.reactions.map(r => (
+                     {msg.reactions?.map((r: any) => (
                         <button key={r.emoji} className="flex items-center gap-1 bg-[#1E293B] hover:bg-[#263148] border border-[#6366F1]/15 rounded-full px-2 py-0.5 text-xs transition-colors">
                           <span>{r.emoji}</span>
                           <span className="text-[#94A3B8]">{r.count}</span>
@@ -548,13 +646,14 @@ useEffect(() => {
         </div>
 
         {/* Message input */}
-        <div className="px-5 pb-5 flex-shrink-0">
+        <form onSubmit={handleSendSubmit} className="px-5 pb-5 flex-shrink-0">
           <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
             <div className="flex items-center gap-3 px-4 py-3">
               <input
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+
                 placeholder={`Message #${currentChannel?.name || ""}`}
                 className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
               />
@@ -573,7 +672,7 @@ useEffect(() => {
                 ))}
               </div>
               <button
-                onClick={sendMessage}
+                type="submit"
                 disabled={!message.trim()}
                 className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg transition-all hover:shadow-lg hover:shadow-[#6366F1]/30"
               >
@@ -581,7 +680,7 @@ useEffect(() => {
               </button>
             </div>
           </div>
-        </div>
+        </form>
       </div>
 
       {/* Online users panel */}
