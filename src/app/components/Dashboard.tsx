@@ -173,16 +173,23 @@ function WorkspaceModal({
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  const socket = io("http://localhost:5000");
   const socketRef = useRef<any>(null);
 
   const [activeWS, setActiveWS] = useState("");
   const [activeChannel, setActiveChannel] = useState("");
+  const [activeConversation, setActiveConversation] = useState<string | null>(null);
+  const [selectedDmUser, setSelectedDmUser] = useState<any>(null);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [message, setMessage] = useState("");
+  const [dmMessage, setDmMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
+  const [dmMessages, setDmMessages] = useState<any[]>([]);
   const [userData, setUserData] = useState<any>(null);
+
+  const activeChannelRef = useRef("");
+  const activeConversationRef = useRef<string | null>(null);
 
   const getItemId = (item: any) => item?._id ?? item?.id ?? "";
 
@@ -223,13 +230,24 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-  const fetchDashboard = async () => {
+  const getStoredUser = () => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchConversationMessages = async (conversationId: string) => {
+    if (!conversationId) return;
+
     try {
       const token = localStorage.getItem("token");
+      if (!token) return;
 
       const res = await axios.get(
-        "http://localhost:5000/api/dashboard",
+        `http://localhost:5000/api/conversations/${conversationId}/messages`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -237,8 +255,29 @@ export default function Dashboard() {
         }
       );
 
-      console.log(res.data);
-      const workspaceRes = await axios.get(
+      setDmMessages(res.data.map((msg: any) => mapServerMessage(msg)));
+    } catch (error) {
+      console.error("Failed to load direct messages", error);
+    }
+  };
+
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUserData(storedUser);
+    }
+
+    const fetchDashboard = async () => {
+      try {
+        const token = localStorage.getItem("token");
+
+        await axios.get("http://localhost:5000/api/dashboard", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const workspaceRes = await axios.get(
           "http://localhost:5000/api/workspaces",
           {
             headers: {
@@ -252,14 +291,21 @@ export default function Dashboard() {
         if (workspaceRes.data.length > 0) {
           setActiveWS(getItemId(workspaceRes.data[0]));
         }
-    } 
-    catch (error) {
-      console.error(error);
-    }
-  };
 
-  fetchDashboard();
-}, []);
+        const usersRes = await axios.get("http://localhost:5000/api/users", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        setUsers(usersRes.data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
 
 useEffect(() => {
   const fetchChannels = async () => {
@@ -359,41 +405,159 @@ useEffect(() => {
   };
 
   useEffect(() => {
-  socketRef.current = io("http://localhost:5000");
+    activeChannelRef.current = activeChannel;
+  }, [activeChannel]);
 
-  socketRef.current.on("connect", () => {
-    console.log("Socket Connected");
-  });
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
 
-  socketRef.current.on("new-message", (newMessage: any) => {
-    console.log("Realtime Message:", newMessage);
+  useEffect(() => {
+    const socketInstance = io("http://localhost:5000");
+    socketRef.current = socketInstance;
 
+    socketInstance.on("connect", () => {
+      console.log("Socket Connected");
+      const storedUser = getStoredUser();
+      if (storedUser?.id) {
+        socketInstance.emit("join-user-room", storedUser.id);
+      }
+    });
 
-    {
-      setMessages((prev: any) => [
-      ...prev,
-      mapServerMessage(newMessage),
-   ]);
+    socketInstance.on("new-message", (newMessage: any) => {
+      if (newMessage?.channel && newMessage.channel === activeChannelRef.current) {
+        setMessages((prev: any) => {
+          const id = newMessage._id || newMessage.id;
+          if (prev.some((message: any) => message.id === id)) {
+            return prev;
+          }
+          return [...prev, mapServerMessage(newMessage)];
+        });
+      }
+    });
+
+    socketInstance.on("new-direct-message", (newMessage: any) => {
+      if (
+        newMessage?.conversation &&
+        newMessage.conversation === activeConversationRef.current
+      ) {
+        setDmMessages((prev: any) => {
+          const id = newMessage._id || newMessage.id;
+          if (prev.some((message: any) => message.id === id)) {
+            return prev;
+          }
+          return [...prev, mapServerMessage(newMessage)];
+        });
+      }
+    });
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, []);
+
+  const sendDirectMessage = async () => {
+    if (!dmMessage.trim() || !activeConversation) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.post(
+        `http://localhost:5000/api/conversations/${activeConversation}/messages`,
+        {
+          content: dmMessage,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const newMessage = res.data?.message || res.data;
+      setDmMessage("");
+
+      if (newMessage?._id) {
+        setDmMessages((prev) => {
+          const id = newMessage._id;
+          if (prev.some((message: any) => message.id === id)) {
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              id: newMessage._id,
+              user: newMessage.sender?.name || "You",
+              avatar: getInitials(newMessage.sender?.name || "You"),
+              color: getMessageColor(newMessage.sender?.name || "You"),
+              time: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              content: newMessage.content,
+            },
+          ];
+        });
+      }
+    } catch (error: any) {
+      console.error("Failed to send direct message", error.response || error);
     }
-  });
-
-  return () => {
-    socketRef.current.disconnect();
   };
-}, [activeChannel]);
+
+  const handleSelectUserForDM = async (user: any) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.post(
+        "http://localhost:5000/api/conversations",
+        { participantId: user._id },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const conversation = res.data?.conversation;
+      if (conversation?._id) {
+        setActiveConversation(conversation._id);
+        setSelectedDmUser(user);
+        setActiveChannel("");
+        await fetchConversationMessages(conversation._id);
+      }
+    } catch (error: any) {
+      console.error("Failed to open conversation", error.response || error);
+    }
+  };
 
   const handleSendSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     await sendMessage();
   };
 
+  const handleDirectMessageSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await sendDirectMessage();
+  };
+
   const channelMsgs = messages;
+  const isDmView = Boolean(activeConversation && selectedDmUser);
+  const activeMessages = isDmView ? dmMessages : channelMsgs;
   const ws: any = workspaces.find(
     (w: any) => getItemId(w) === activeWS
   );
   const currentChannel = channels.find(
     (c: any) => getItemId(c) === activeChannel
   );
+  const chatTitle = isDmView ? selectedDmUser?.name || "Direct Message" : currentChannel?.name || "Channel";
+  const chatSubtitle = isDmView
+    ? "Private conversation"
+    : activeChannel === "general"
+      ? "General team communication — everyone here"
+      : "Team channel";
+  const chatIcon = isDmView ? <MessageSquare size={16} className="text-[#94A3B8] flex-shrink-0" /> : <Hash size={16} className="text-[#94A3B8] flex-shrink-0" />;
   return (
     <div className="h-screen bg-[#0F172A] flex overflow-hidden text-[#F8FAFC]">
       
@@ -473,7 +637,12 @@ useEffect(() => {
           {channels.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((ch: any) => {
             const channelId = getItemId(ch);
             return (
-              <button key={channelId} onClick={() => setActiveChannel(channelId)}
+              <button key={channelId} onClick={() => {
+                setActiveChannel(channelId);
+                setActiveConversation(null);
+                setSelectedDmUser(null);
+                setDmMessages([]);
+              }}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${activeChannel === channelId ? 'bg-[#6366F1]/15 text-white' : 'text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white'}`}>
                 {ch.type === "private" ? <Lock size={13} className="flex-shrink-0" /> : <Hash size={13} className="flex-shrink-0" />}
                 <span className="text-xs flex-1 truncate">{ch.name}</span>
@@ -491,15 +660,19 @@ useEffect(() => {
             <button className="text-[#475569] hover:text-[#94A3B8] transition-colors"><Plus size={13} /></button>
           </div>
 
-          {ONLINE_USERS.slice(0,3).map(u => (
-            <button key={u.name} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white transition-colors">
+          {users.map((u: any) => (
+            <button
+              key={u._id}
+              onClick={() => handleSelectUserForDM(u)}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${selectedDmUser?._id === u._id ? "bg-[#6366F1]/15 text-white" : "text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white"}`}
+            >
               <div className="relative flex-shrink-0">
-                <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${u.color} flex items-center justify-center`}>
-                  <span className="text-white font-bold" style={{fontSize: '8px'}}>{u.avatar}</span>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center">
+                  <span className="text-white font-bold" style={{fontSize: '8px'}}>{getInitials(u.name)}</span>
                 </div>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0D1829] ${u.status === 'online' ? 'bg-[#10B981]' : u.status === 'busy' ? 'bg-[#EF4444]' : 'bg-[#F59E0B]'}`} />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0D1829] bg-[#10B981]" />
               </div>
-              <span className="text-xs truncate">{u.name.split(' ')[0]}</span>
+              <span className="text-xs truncate">{u.name}</span>
             </button>
           ))}
 
@@ -522,12 +695,10 @@ useEffect(() => {
         {/* Channel header */}
         <div className="h-14 border-b border-[#6366F1]/10 flex items-center px-5 gap-4 flex-shrink-0 bg-[#0F172A]">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Hash size={16} className="text-[#94A3B8] flex-shrink-0" />
-            <span className="text-white font-semibold">{currentChannel?.name || "Channel"}</span>
+            {chatIcon}
+            <span className="text-white font-semibold">{chatTitle}</span>
             <div className="w-px h-4 bg-[#263148] mx-1" />
-            <span className="text-[#475569] text-sm truncate hidden sm:block">
-              {activeChannel === "general" ? "General team communication — everyone here" : "Team channel"}
-            </span>
+            <span className="text-[#475569] text-sm truncate hidden sm:block">{chatSubtitle}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button className="flex items-center gap-1.5 bg-[#1E293B] hover:bg-[#263148] rounded-lg px-3 py-1.5 text-xs text-[#94A3B8] hover:text-white transition-colors"><Phone size={12} /> Call</button>
@@ -607,8 +778,8 @@ useEffect(() => {
             <div className="inline-block bg-[#1E293B] border border-[#6366F1]/10 rounded-full px-4 py-1 text-xs text-[#475569]">Today</div>
           </div>
 
-          {channelMsgs.map((msg, idx) => {
-            const showAvatar = idx === 0 || channelMsgs[idx-1].user !== msg.user;
+          {activeMessages.map((msg, idx) => {
+            const showAvatar = idx === 0 || activeMessages[idx-1].user !== msg.user;
             return (
               <div key={msg.id} className={`flex gap-3 group ${!showAvatar ? 'ml-11' : ''}`}>
                 {showAvatar && (
@@ -677,41 +848,77 @@ useEffect(() => {
         </div>
 
         {/* Message input */}
-        <form onSubmit={handleSendSubmit} className="px-5 pb-5 flex-shrink-0">
-          <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
-            <div className="flex items-center gap-3 px-4 py-3">
-              <input
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-
-                placeholder={`Message #${currentChannel?.name || ""}`}
-                className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
-              />
-            </div>
-            <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#6366F1]/10">
-              <div className="flex items-center gap-1">
-                {[
-                  { Icon: Paperclip, title: "Attach file" },
-                  { Icon: AtSign, title: "Mention" },
-                  { Icon: Smile, title: "Emoji" },
-                  { Icon: Mic, title: "Voice message" },
-                ].map(({ Icon, title }) => (
-                  <button key={title} title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
-                    <Icon size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
-                  </button>
-                ))}
+        {isDmView ? (
+          <form onSubmit={handleDirectMessageSubmit} className="px-5 pb-5 flex-shrink-0">
+            <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <input
+                  value={dmMessage}
+                  onChange={e => setDmMessage(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDirectMessage(); } }}
+                  placeholder={`Message ${selectedDmUser?.name || "user"}`}
+                  className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
+                />
               </div>
-              <button
-                type="submit"
-                disabled={!message.trim()}
-                className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg transition-all hover:shadow-lg hover:shadow-[#6366F1]/30"
-              >
-                Send <Send size={12} />
-              </button>
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#6366F1]/10">
+                <div className="flex items-center gap-1">
+                  {[
+                    { Icon: Paperclip, title: "Attach file" },
+                    { Icon: AtSign, title: "Mention" },
+                    { Icon: Smile, title: "Emoji" },
+                    { Icon: Mic, title: "Voice message" },
+                  ].map(({ Icon, title }) => (
+                    <button key={title} title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                      <Icon size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="submit"
+                  disabled={!dmMessage.trim()}
+                  className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg transition-all hover:shadow-lg hover:shadow-[#6366F1]/30"
+                >
+                  Send <Send size={12} />
+                </button>
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        ) : (
+          <form onSubmit={handleSendSubmit} className="px-5 pb-5 flex-shrink-0">
+            <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <input
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  placeholder={`Message #${currentChannel?.name || ""}`}
+                  className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#6366F1]/10">
+                <div className="flex items-center gap-1">
+                  {[
+                    { Icon: Paperclip, title: "Attach file" },
+                    { Icon: AtSign, title: "Mention" },
+                    { Icon: Smile, title: "Emoji" },
+                    { Icon: Mic, title: "Voice message" },
+                  ].map(({ Icon, title }) => (
+                    <button key={title} title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                      <Icon size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="submit"
+                  disabled={!message.trim()}
+                  className="flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-2 rounded-lg transition-all hover:shadow-lg hover:shadow-[#6366F1]/30"
+                >
+                  Send <Send size={12} />
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Online users panel */}

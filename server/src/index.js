@@ -9,6 +9,8 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const workspaceRoutes = require("./routes/workspaceRoutes");
 const channelRoutes = require("./routes/channelRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const userRoutes = require("./routes/userRoutes");
+const conversationRoutes = require("./routes/conversationRoutes");
 
 
 const connectDB = require("./config/db");
@@ -37,12 +39,21 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/channels", channelRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/conversations", conversationRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server Running 🚀");
 });
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
+
+  socket.on("join-user-room", (userId) => {
+    if (userId) {
+      socket.join(userId.toString());
+      console.log(`User ${userId} joined personal room`);
+    }
+  });
 
   socket.on("disconnect", () => {
     console.log("User Disconnected:", socket.id);

@@ -10,7 +10,13 @@ const messageSchema = new mongoose.Schema(
     channel: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Channel",
-      required: true,
+      required: false,
+    },
+
+    conversation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      required: false,
     },
 
     sender: {
