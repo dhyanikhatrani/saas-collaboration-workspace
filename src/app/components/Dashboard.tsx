@@ -1,5 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent } from "react";
+
+
 import axios from "axios";
+import { io } from "socket.io-client";
 import { useNavigate } from "react-router";
 import {
   Zap, Hash, Lock, Plus, Search, Bell, ChevronDown, Settings,
@@ -169,6 +172,10 @@ function WorkspaceModal({
 
 export default function Dashboard() {
   const navigate = useNavigate();
+
+  const socket = io("http://localhost:5000");
+  const socketRef = useRef<any>(null);
+
   const [activeWS, setActiveWS] = useState("");
   const [activeChannel, setActiveChannel] = useState("");
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -350,6 +357,30 @@ useEffect(() => {
       console.error("Failed to send message", error.response || error);
     }
   };
+
+  useEffect(() => {
+  socketRef.current = io("http://localhost:5000");
+
+  socketRef.current.on("connect", () => {
+    console.log("Socket Connected");
+  });
+
+  socketRef.current.on("new-message", (newMessage: any) => {
+    console.log("Realtime Message:", newMessage);
+
+
+    {
+      setMessages((prev: any) => [
+      ...prev,
+      mapServerMessage(newMessage),
+   ]);
+    }
+  });
+
+  return () => {
+    socketRef.current.disconnect();
+  };
+}, [activeChannel]);
 
   const handleSendSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

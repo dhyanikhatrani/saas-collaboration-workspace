@@ -14,10 +14,16 @@ router.post("/send", authMiddleware, async (req, res) => {
       channel: channelId,
       sender: req.user.id,
     });
+    const populatedMessage = await Message.findById(message._id)
+    .populate("sender", "name email");
+
+    const io = req.app.get("io");
+    console.log("Emitting:", populatedMessage);
+    io.emit("new-message", populatedMessage);
 
     res.status(201).json({
-      success: true,
-      message,
+    success: true,
+     message: populatedMessage,
     });
 
   } catch (error) {
