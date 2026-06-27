@@ -182,6 +182,7 @@ export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [dmMessage, setDmMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
@@ -204,6 +205,8 @@ export default function Dashboard() {
     }),
     content: msg.content,
   });
+
+  const isUserOnline = (userId: string) => onlineUserIds.includes(userId?.toString());
 
   const fetchMessages = async (channelId: string) => {
     if (!channelId) return;
@@ -420,7 +423,14 @@ useEffect(() => {
       console.log("Socket Connected");
       const storedUser = getStoredUser();
       if (storedUser?.id) {
+        socketInstance.emit("user-online", storedUser.id);
         socketInstance.emit("join-user-room", storedUser.id);
+      }
+    });
+
+    socketInstance.on("online-users", (onlineIds: string[]) => {
+      if (Array.isArray(onlineIds)) {
+        setOnlineUserIds(onlineIds.map((id) => id.toString()));
       }
     });
 
@@ -660,21 +670,24 @@ useEffect(() => {
             <button className="text-[#475569] hover:text-[#94A3B8] transition-colors"><Plus size={13} /></button>
           </div>
 
-          {users.map((u: any) => (
-            <button
-              key={u._id}
-              onClick={() => handleSelectUserForDM(u)}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${selectedDmUser?._id === u._id ? "bg-[#6366F1]/15 text-white" : "text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white"}`}
-            >
-              <div className="relative flex-shrink-0">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center">
-                  <span className="text-white font-bold" style={{fontSize: '8px'}}>{getInitials(u.name)}</span>
+          {users.map((u: any) => {
+            const online = isUserOnline(u._id);
+            return (
+              <button
+                key={u._id}
+                onClick={() => handleSelectUserForDM(u)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${selectedDmUser?._id === u._id ? "bg-[#6366F1]/15 text-white" : "text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white"}`}
+              >
+                <div className="relative flex-shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center">
+                    <span className="text-white font-bold" style={{fontSize: '8px'}}>{getInitials(u.name)}</span>
+                  </div>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0D1829] ${online ? 'bg-[#10B981]' : 'bg-[#475569]'}`} />
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0D1829] bg-[#10B981]" />
-              </div>
-              <span className="text-xs truncate">{u.name}</span>
-            </button>
-          ))}
+                <span className="text-xs truncate">{u.name}</span>
+              </button>
+            );
+          })}
 
           <div className="px-2 py-1.5 flex items-center justify-between mt-3">
             <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Tools</span>

@@ -31,6 +31,7 @@ const io = new Server(server, {
 console.log("Socket Server Created");
 app.set("io", io);
 
+const onlineUsers = new Map();
 
 app.use(cors());
 app.use(express.json());
@@ -48,6 +49,18 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
 
+  socket.on("user-online", (userId) => {
+    if (!userId) return;
+
+    const userKey = userId.toString();
+    onlineUsers.set(userKey, socket.id);
+    socket.join(userKey);
+
+    console.log(`User ${userKey} is online with socket ${socket.id}`);
+    io.emit("user-online", userKey);
+    io.emit("online-users", Array.from(onlineUsers.keys()));
+  });
+
   socket.on("join-user-room", (userId) => {
     if (userId) {
       socket.join(userId.toString());
@@ -57,6 +70,16 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User Disconnected:", socket.id);
+    const offlineEntry = Array.from(onlineUsers.entries()).find(
+      ([, socketId]) => socketId === socket.id
+    );
+
+    if (offlineEntry) {
+      const [userId] = offlineEntry;
+      onlineUsers.delete(userId);
+      console.log(`User ${userId} went offline`);
+      io.emit("online-users", Array.from(onlineUsers.keys()));
+    }
   });
 });
 
