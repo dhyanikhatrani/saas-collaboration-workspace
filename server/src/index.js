@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const path = require("path");
 const dotenv = require("dotenv");
 const { Server } = require("socket.io");
 
@@ -11,6 +12,7 @@ const channelRoutes = require("./routes/channelRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const userRoutes = require("./routes/userRoutes");
 const conversationRoutes = require("./routes/conversationRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 
 const connectDB = require("./config/db");
@@ -35,11 +37,13 @@ const onlineUsers = new Map();
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/channels", channelRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/upload", uploadRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/conversations", conversationRoutes);
 

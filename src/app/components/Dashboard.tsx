@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import {
   Zap, Hash, Lock, Plus, Search, Bell, ChevronDown, Settings,
   Smile, Paperclip, Send, MoreHorizontal, AtSign, Bookmark,
-  Users, FileText, BarChart3, Pin, X, Check, Mic, Video,
+  Users, FileText, Download, BarChart3, Pin, X, Check, Mic, Video,
   Phone, Star, ArrowRight, MessageSquare, ChevronRight, Layers
 } from "lucide-react";
 
@@ -185,9 +185,12 @@ export default function Dashboard() {
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [dmMessage, setDmMessage] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [messages, setMessages] = useState<any[]>([]);
   const [dmMessages, setDmMessages] = useState<any[]>([]);
   const [userData, setUserData] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeChannelRef = useRef("");
   const activeConversationRef = useRef<string | null>(null);
@@ -203,8 +206,84 @@ export default function Dashboard() {
       hour: "2-digit",
       minute: "2-digit",
     }),
-    content: msg.content,
+    content: msg.content || msg.fileName || "",
+    file: msg.fileName
+      ? {
+          name: msg.fileName,
+          url: msg.fileUrl ? `http://localhost:5000${msg.fileUrl}` : "",
+          type: msg.fileType,
+        }
+      : undefined,
   });
+
+  const isImageFile = (fileType: string) => {
+    return ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(fileType);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+    e.target.value = "";
+  };
+
+  const uploadFile = async (file: File) => {
+    try {
+      if (!activeChannel && !activeConversation) {
+        alert("Select a channel or direct conversation first.");
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const formData = new FormData();
+      formData.append("file", file);
+      if (activeChannel) formData.append("channelId", activeChannel);
+      if (activeConversation) formData.append("conversationId", activeConversation);
+
+      setUploadingFile(true);
+      setUploadProgress(0);
+
+      const res = await axios.post("http://localhost:5000/api/upload", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+        onUploadProgress: (event) => {
+          if (event.total) {
+            setUploadProgress(Math.round((event.loaded * 100) / event.total));
+          }
+        },
+      });
+
+      const newMessage = res.data?.message || res.data;
+      if (newMessage?._id) {
+        const mapped = mapServerMessage(newMessage);
+        if (activeConversation) {
+          setDmMessages((prev) => {
+            if (prev.some((message: any) => message.id === mapped.id)) return prev;
+            return [...prev, mapped];
+          });
+        } else {
+          setMessages((prev) => {
+            if (prev.some((message: any) => message.id === mapped.id)) return prev;
+            return [...prev, mapped];
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error("File upload failed", error);
+      alert(error.response?.data?.message || "File upload failed");
+    } finally {
+      setUploadingFile(false);
+      setUploadProgress(0);
+    }
+  };
 
   const isUserOnline = (userId: string) => onlineUserIds.includes(userId?.toString());
 
@@ -809,15 +888,29 @@ useEffect(() => {
                   )}
                   <p className="text-[#CBD5E1] text-sm leading-relaxed">{msg.content}</p>
                   {msg.file && (
-                    <div className="mt-2 inline-flex items-center gap-3 bg-[#1E293B] border border-[#6366F1]/15 rounded-xl px-4 py-2.5 cursor-pointer hover:border-[#6366F1]/30 transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-[#6366F1]/20 flex items-center justify-center">
-                        <FileText size={14} className="text-[#6366F1]" />
-                      </div>
-                      <div>
-                        <div className="text-white text-xs font-medium">{msg.file.name}</div>
-                        <div className="text-[#475569] text-xs">{msg.file.size}</div>
-                      </div>
-                      <ArrowRight size={13} className="text-[#6366F1] ml-2" />
+                    <div className="mt-2 bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden transition-all">
+                      {isImageFile(msg.file.type) ? (
+                        <div className="relative">
+                          <img src={msg.file.url} alt={msg.file.name} className="w-full max-h-64 object-cover" />
+                          <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white uppercase tracking-[0.15em]">
+                            Image
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#6366F1]/10 flex items-center justify-center">
+                            <FileText size={18} className="text-[#6366F1]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-white text-xs font-medium truncate">{msg.file.name}</div>
+                            <div className="text-[#475569] text-[11px] truncate">{msg.file.type}</div>
+                          </div>
+                          <a href={msg.file.url} download className="inline-flex items-center gap-1 rounded-lg bg-[#6366F1] px-3 py-2 text-[11px] text-white hover:bg-[#5558E8] transition-colors">
+                            <Download size={12} />
+                            Download
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                   {msg.reactions && msg.reactions.length > 0 && (
@@ -863,6 +956,13 @@ useEffect(() => {
         {/* Message input */}
         {isDmView ? (
           <form onSubmit={handleDirectMessageSubmit} className="px-5 pb-5 flex-shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.gif,.pdf,.docx,.xlsx,.zip"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
             <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
               <div className="flex items-center gap-3 px-4 py-3">
                 <input
@@ -875,13 +975,15 @@ useEffect(() => {
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#6366F1]/10">
                 <div className="flex items-center gap-1">
+                  <button type="button" onClick={triggerFileUpload} title="Attach file" className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                    <Paperclip size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
+                  </button>
                   {[
-                    { Icon: Paperclip, title: "Attach file" },
                     { Icon: AtSign, title: "Mention" },
                     { Icon: Smile, title: "Emoji" },
                     { Icon: Mic, title: "Voice message" },
                   ].map(({ Icon, title }) => (
-                    <button key={title} title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                    <button key={title} type="button" title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
                       <Icon size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
                     </button>
                   ))}
@@ -894,10 +996,25 @@ useEffect(() => {
                   Send <Send size={12} />
                 </button>
               </div>
+              {uploadingFile && (
+                <div className="px-4 pb-3">
+                  <div className="h-2 rounded-full bg-[#475569] overflow-hidden">
+                    <div className="h-full bg-[#6366F1] transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <div className="text-[#94A3B8] text-[10px] mt-1">Uploading {uploadProgress}%</div>
+                </div>
+              )}
             </div>
           </form>
         ) : (
           <form onSubmit={handleSendSubmit} className="px-5 pb-5 flex-shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.gif,.pdf,.docx,.xlsx,.zip"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
             <div className="bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden focus-within:border-[#6366F1]/40 focus-within:ring-2 focus-within:ring-[#6366F1]/10 transition-all">
               <div className="flex items-center gap-3 px-4 py-3">
                 <input
@@ -910,13 +1027,15 @@ useEffect(() => {
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#6366F1]/10">
                 <div className="flex items-center gap-1">
+                  <button type="button" onClick={triggerFileUpload} title="Attach file" className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                    <Paperclip size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
+                  </button>
                   {[
-                    { Icon: Paperclip, title: "Attach file" },
                     { Icon: AtSign, title: "Mention" },
                     { Icon: Smile, title: "Emoji" },
                     { Icon: Mic, title: "Voice message" },
                   ].map(({ Icon, title }) => (
-                    <button key={title} title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
+                    <button key={title} type="button" title={title} className="w-8 h-8 rounded-lg hover:bg-[#263148] flex items-center justify-center transition-colors">
                       <Icon size={15} className="text-[#475569] hover:text-[#94A3B8] transition-colors" />
                     </button>
                   ))}
@@ -929,6 +1048,14 @@ useEffect(() => {
                   Send <Send size={12} />
                 </button>
               </div>
+              {uploadingFile && (
+                <div className="px-4 pb-3">
+                  <div className="h-2 rounded-full bg-[#475569] overflow-hidden">
+                    <div className="h-full bg-[#6366F1] transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <div className="text-[#94A3B8] text-[10px] mt-1">Uploading {uploadProgress}%</div>
+                </div>
+              )}
             </div>
           </form>
         )}

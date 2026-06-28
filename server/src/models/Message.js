@@ -4,7 +4,7 @@ const messageSchema = new mongoose.Schema(
   {
     content: {
       type: String,
-      required: true,
+      required: false,
     },
 
     channel: {
@@ -23,6 +23,21 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+
+    fileName: {
+      type: String,
+      required: false,
+    },
+
+    fileUrl: {
+      type: String,
+      required: false,
+    },
+
+    fileType: {
+      type: String,
+      required: false,
     },
   },
   {
