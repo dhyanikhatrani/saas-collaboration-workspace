@@ -72,6 +72,53 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("join-room", ({ roomName }) => {
+    if (!roomName) return;
+    socket.join(roomName);
+    console.log(`Socket ${socket.id} joined room ${roomName}`);
+  });
+
+  socket.on("leave-room", ({ roomName }) => {
+    if (!roomName) return;
+    socket.leave(roomName);
+    console.log(`Socket ${socket.id} left room ${roomName}`);
+  });
+
+  socket.on("user-typing", ({ senderId, senderName, conversationId, channelId }) => {
+    if (!senderId) return;
+
+    const roomName = conversationId
+      ? `conversation:${conversationId}`
+      : channelId
+        ? `channel:${channelId}`
+        : null;
+
+    if (!roomName) return;
+
+    socket.to(roomName).emit("user-typing", {
+      senderId,
+      senderName,
+      conversationId,
+      channelId,
+    });
+  });
+
+  socket.on("user-stop-typing", ({ senderId, conversationId, channelId }) => {
+    const roomName = conversationId
+      ? `conversation:${conversationId}`
+      : channelId
+        ? `channel:${channelId}`
+        : null;
+
+    if (!roomName) return;
+
+    socket.to(roomName).emit("user-stop-typing", {
+      senderId,
+      conversationId,
+      channelId,
+    });
+  });
+
   socket.on("disconnect", () => {
     console.log("User Disconnected:", socket.id);
     const offlineEntry = Array.from(onlineUsers.entries()).find(

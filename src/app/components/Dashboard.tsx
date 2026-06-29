@@ -190,10 +190,14 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<any[]>([]);
   const [dmMessages, setDmMessages] = useState<any[]>([]);
   const [userData, setUserData] = useState<any>(null);
+  const [typingUser, setTypingUser] = useState("");
+  const [socketReady, setSocketReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeChannelRef = useRef("");
   const activeConversationRef = useRef<string | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const activeRoomRef = useRef<string | null>(null);
 
   const getItemId = (item: any) => item?._id ?? item?.id ?? "";
 
@@ -215,6 +219,15 @@ export default function Dashboard() {
         }
       : undefined,
   });
+
+  const getStoredUser = () => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
 
   const isImageFile = (fileType: string) => {
     return ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(fileType);
@@ -311,16 +324,6 @@ export default function Dashboard() {
       console.error("Failed to load messages", error);
     }
   };
-
-  const getStoredUser = () => {
-    try {
-      const raw = localStorage.getItem("user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  };
-
   const fetchConversationMessages = async (conversationId: string) => {
     if (!conversationId) return;
 
@@ -429,6 +432,54 @@ useEffect(() => {
   const [showProfile, setShowProfile] = useState(false);
   const [search, setSearch] = useState("");
 
+  const emitTypingStatus = (
+    isTyping: boolean,
+    conversationId?: string | null,
+    channelId?: string | null
+  ) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const storedUser = getStoredUser();
+    const senderId = storedUser?._id || storedUser?.id || "";
+    const senderName = storedUser?.name || "Me";
+
+    if (!senderId || (!conversationId && !channelId)) return;
+
+    if (isTyping) {
+      socket.emit("user-typing", {
+        senderId,
+        senderName,
+        conversationId,
+        channelId,
+      });
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = window.setTimeout(() => {
+        socket.emit("user-stop-typing", {
+          senderId,
+          conversationId,
+          channelId,
+        });
+      }, 1000);
+      return;
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    socket.emit("user-stop-typing", {
+      senderId,
+      conversationId,
+      channelId,
+    });
+  };
+
   const sendMessage = async () => {
     
     if (!message.trim() || !activeChannel) return;
@@ -459,6 +510,7 @@ useEffect(() => {
       console.debug("sendMessage response", res.data);
 
       const newMessage = res.data?.message || res.data;
+      emitTypingStatus(false, undefined, activeChannel);
       setMessage("");
 
       if (newMessage?._id) {
@@ -495,11 +547,39 @@ useEffect(() => {
   }, [activeConversation]);
 
   useEffect(() => {
+    if (!socketReady || !socketRef.current) return;
+
+    const previousRoom = activeRoomRef.current;
+    const nextRoomName = activeConversation
+      ? `conversation:${activeConversation}`
+      : activeChannel
+        ? `channel:${activeChannel}`
+        : null;
+
+    if (previousRoom && previousRoom !== nextRoomName) {
+      socketRef.current.emit("leave-room", { roomName: previousRoom });
+    }
+
+    if (nextRoomName) {
+      socketRef.current.emit("join-room", { roomName: nextRoomName });
+    }
+
+    activeRoomRef.current = nextRoomName;
+    setTypingUser("");
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, [activeConversation, activeChannel, socketReady]);
+
+  useEffect(() => {
     const socketInstance = io("http://localhost:5000");
     socketRef.current = socketInstance;
 
     socketInstance.on("connect", () => {
       console.log("Socket Connected");
+      setSocketReady(true);
       const storedUser = getStoredUser();
       if (storedUser?.id) {
         socketInstance.emit("user-online", storedUser.id);
@@ -540,7 +620,40 @@ useEffect(() => {
       }
     });
 
+    socketInstance.on("user-typing", ({ senderId, senderName, conversationId, channelId }: any) => {
+      const storedUser = getStoredUser();
+      const currentUserId = storedUser?._id || storedUser?.id || "";
+
+      if (!senderName || senderId?.toString() === currentUserId?.toString()) {
+        return;
+      }
+
+      if (
+        (conversationId && activeConversationRef.current && conversationId === activeConversationRef.current) ||
+        (channelId && activeChannelRef.current && channelId === activeChannelRef.current)
+      ) {
+        setTypingUser(senderName);
+      }
+    });
+
+    socketInstance.on("user-stop-typing", ({ senderId, conversationId, channelId }: any) => {
+      const storedUser = getStoredUser();
+      const currentUserId = storedUser?._id || storedUser?.id || "";
+
+      if (senderId?.toString() === currentUserId?.toString()) {
+        return;
+      }
+
+      if (
+        (conversationId && activeConversationRef.current && conversationId === activeConversationRef.current) ||
+        (channelId && activeChannelRef.current && channelId === activeChannelRef.current)
+      ) {
+        setTypingUser("");
+      }
+    });
+
     return () => {
+      setSocketReady(false);
       socketInstance.disconnect();
     };
   }, []);
@@ -565,6 +678,7 @@ useEffect(() => {
       );
 
       const newMessage = res.data?.message || res.data;
+      emitTypingStatus(false, activeConversation, undefined);
       setDmMessage("");
 
       if (newMessage?._id) {
@@ -942,15 +1056,16 @@ useEffect(() => {
             );
           })}
 
-          {/* Typing indicator */}
-          <div className="flex items-center gap-2 ml-11">
-            <div className="flex gap-1">
-              {[0,1,2].map(i => (
-                <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#6366F1]" style={{animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite`}} />
-              ))}
+          {typingUser && (
+            <div className="flex items-center gap-2 ml-11">
+              <div className="flex gap-1">
+                {[0,1,2].map(i => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#6366F1]" style={{animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite`}} />
+                ))}
+              </div>
+              <span className="text-[#475569] text-xs"> {typingUser} is typing…</span>
             </div>
-            <span className="text-[#475569] text-xs">Sarah is typing…</span>
-          </div>
+          )}
         </div>
 
         {/* Message input */}
@@ -967,7 +1082,10 @@ useEffect(() => {
               <div className="flex items-center gap-3 px-4 py-3">
                 <input
                   value={dmMessage}
-                  onChange={e => setDmMessage(e.target.value)}
+                  onChange={(e) => {
+                    setDmMessage(e.target.value);
+                    emitTypingStatus(Boolean(e.target.value.trim()), activeConversation, undefined);
+                  }}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDirectMessage(); } }}
                   placeholder={`Message ${selectedDmUser?.name || "user"}`}
                   className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
@@ -1019,7 +1137,10 @@ useEffect(() => {
               <div className="flex items-center gap-3 px-4 py-3">
                 <input
                   value={message}
-                  onChange={e => setMessage(e.target.value)}
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    emitTypingStatus(Boolean(e.target.value.trim()), undefined, activeChannel);
+                  }}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder={`Message #${currentChannel?.name || ""}`}
                   className="flex-1 bg-transparent text-white placeholder-[#475569] text-sm focus:outline-none"
