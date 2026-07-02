@@ -18,17 +18,6 @@ const WORKSPACES = [
   { id: "sa", name: "Sales", color: "from-[#10B981] to-[#06B6D4]", unread: 1 },
 ];
 
-
-const ONLINE_USERS = [
-  { name: "Sarah Chen", role: "Product Designer", avatar: "SC", color: "from-[#6366F1] to-[#8B5CF6]", status: "online" },
-  { name: "Marcus Rodriguez", role: "Frontend Engineer", avatar: "MR", color: "from-[#06B6D4] to-[#6366F1]", status: "online" },
-  { name: "Elena Vasquez", role: "Engineering Lead", avatar: "EV", color: "from-[#8B5CF6] to-[#EC4899]", status: "busy" },
-  { name: "David Miller", role: "Product Manager", avatar: "DM", color: "from-[#10B981] to-[#06B6D4]", status: "online" },
-  { name: "Aisha Patel", role: "UX Researcher", avatar: "AP", color: "from-[#F59E0B] to-[#EF4444]", status: "away" },
-];
-
-const PINNED_MSG = "📌 Reminder: Sprint planning Thursday 2PM. Design handoff deadline: Friday EOD.";
-
 const getInitials = (name: string) => {
   if (!name) return "ME";
   return name
@@ -882,17 +871,7 @@ useEffect(() => {
             );
           })}
 
-          <div className="px-2 py-1.5 flex items-center justify-between mt-3">
-            <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Tools</span>
-          </div>
-          <button onClick={() => navigate("/documents")} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white transition-colors">
-            <FileText size={13} className="flex-shrink-0" />
-            <span className="text-xs">Documents</span>
-          </button>
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[#94A3B8] hover:bg-[#1E293B]/60 hover:text-white transition-colors">
-            <BarChart3 size={13} className="flex-shrink-0" />
-            <span className="text-xs">Analytics</span>
-          </button>
+
         </div>
       </div>
 
@@ -907,8 +886,6 @@ useEffect(() => {
             <span className="text-[#475569] text-sm truncate hidden sm:block">{chatSubtitle}</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button className="flex items-center gap-1.5 bg-[#1E293B] hover:bg-[#263148] rounded-lg px-3 py-1.5 text-xs text-[#94A3B8] hover:text-white transition-colors"><Phone size={12} /> Call</button>
-            <button className="flex items-center gap-1.5 bg-[#1E293B] hover:bg-[#263148] rounded-lg px-3 py-1.5 text-xs text-[#94A3B8] hover:text-white transition-colors"><Video size={12} /> Video</button>
             <div className="relative">
               <button onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }} className="relative w-8 h-8 rounded-lg bg-[#1E293B] hover:bg-[#263148] flex items-center justify-center transition-colors">
                 <Bell size={15} className="text-[#94A3B8]" />
@@ -969,13 +946,6 @@ useEffect(() => {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Pinned message */}
-        <div className="bg-[#6366F1]/8 border-b border-[#6366F1]/10 px-5 py-2 flex items-center gap-3">
-          <Pin size={12} className="text-[#6366F1] flex-shrink-0" />
-          <span className="text-[#CBD5E1] text-xs flex-1">{PINNED_MSG}</span>
-          <button className="text-[#475569] hover:text-white transition-colors"><X size={12} /></button>
         </div>
 
         {/* Messages */}
@@ -1180,72 +1150,6 @@ useEffect(() => {
             </div>
           </form>
         )}
-      </div>
-
-      {/* Online users panel */}
-      <div className="w-56 bg-[#0D1829] border-l border-[#6366F1]/10 flex-col flex-shrink-0 hidden xl:flex">
-        <div className="px-4 py-4 border-b border-[#6366F1]/10">
-          <span className="text-[#94A3B8] text-xs font-semibold uppercase tracking-wider">Members · {ONLINE_USERS.length}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 scrollbar-hidden">
-          <div className="px-2 py-1 text-[#475569] text-xs font-medium uppercase tracking-wider">Online — {ONLINE_USERS.filter(u => u.status === 'online').length}</div>
-          {ONLINE_USERS.filter(u => u.status === 'online').map(u => (
-            <div key={u.name} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1E293B]/60 cursor-pointer transition-colors group">
-              <div className="relative flex-shrink-0">
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${u.color} flex items-center justify-center`}>
-                  <span className="text-white text-xs font-bold">{u.avatar}</span>
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#10B981] border-2 border-[#0D1829]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-white text-xs font-medium truncate">{u.name.split(' ')[0]}</div>
-                <div className="text-[#475569] text-xs truncate">{u.role}</div>
-              </div>
-            </div>
-          ))}
-
-          <div className="px-2 py-1 text-[#475569] text-xs font-medium uppercase tracking-wider mt-3">Busy — 1</div>
-          {ONLINE_USERS.filter(u => u.status === 'busy').map(u => (
-            <div key={u.name} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1E293B]/60 cursor-pointer transition-colors opacity-70">
-              <div className="relative flex-shrink-0">
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${u.color} flex items-center justify-center`}>
-                  <span className="text-white text-xs font-bold">{u.avatar}</span>
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#EF4444] border-2 border-[#0D1829]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-white text-xs font-medium truncate">{u.name.split(' ')[0]}</div>
-                <div className="text-[#475569] text-xs truncate">{u.role}</div>
-              </div>
-            </div>
-          ))}
-
-          <div className="px-2 py-1 text-[#475569] text-xs font-medium uppercase tracking-wider mt-3">Away — 1</div>
-          {ONLINE_USERS.filter(u => u.status === 'away').map(u => (
-            <div key={u.name} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1E293B]/60 cursor-pointer transition-colors opacity-50">
-              <div className="relative flex-shrink-0">
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${u.color} flex items-center justify-center`}>
-                  <span className="text-white text-xs font-bold">{u.avatar}</span>
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#F59E0B] border-2 border-[#0D1829]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-white text-xs font-medium truncate">{u.name.split(' ')[0]}</div>
-                <div className="text-[#475569] text-xs truncate">{u.role}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom nav */}
-        <div className="border-t border-[#6366F1]/10 p-3 space-y-1">
-          <button onClick={() => navigate("/documents")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#1E293B]/60 text-[#94A3B8] hover:text-white transition-colors text-xs">
-            <FileText size={14} /> Documents
-          </button>
-          <button onClick={() => navigate("/")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#1E293B]/60 text-[#94A3B8] hover:text-white transition-colors text-xs">
-            <Layers size={14} /> Go to landing
-          </button>
-        </div>
       </div>
 
       <style>{`
