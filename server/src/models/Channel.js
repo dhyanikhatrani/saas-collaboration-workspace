@@ -7,6 +7,11 @@ const channelSchema = new mongoose.Schema(
       required: true,
     },
 
+    description: {
+      type: String,
+      default: "",
+    },
+
     workspace: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Workspace",

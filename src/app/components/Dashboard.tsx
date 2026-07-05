@@ -51,22 +51,36 @@ function WorkspaceModal({
   onWorkspaceCreated,
 }: WorkspaceModalProps) {
   const [name, setName] = useState("");
+  const [inviteEmails, setInviteEmails] = useState("");
   const [icon, setIcon] = useState("");
   const [created, setCreated] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackType, setFeedbackType] = useState<"success" | "error" | null>(null);
 
  const handleCreate = async (
   e: React.FormEvent
 ) => {
   e.preventDefault();
 
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    setFeedback("Workspace name is required.");
+    setFeedbackType("error");
+    return;
+  }
+
   try {
-    const token =
-      localStorage.getItem("token");
+    setIsCreating(true);
+    setFeedback("");
+    setFeedbackType(null);
+
+    const token = localStorage.getItem("token");
 
     const res = await axios.post(
       "http://localhost:5000/api/workspaces/create",
       {
-        name,
+        name: trimmedName,
       },
       {
         headers: {
@@ -75,10 +89,44 @@ function WorkspaceModal({
       }
     );
 
-    console.log(res.data);
-    onWorkspaceCreated(res.data.workspace);
+    const createdWorkspace = res.data.workspace;
+    onWorkspaceCreated(createdWorkspace);
 
-    alert("Workspace Created ✅");
+    const emails = inviteEmails
+      .split(/[\n,;]+/)
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    let invitedCount = 0;
+    let inviteFailures: string[] = [];
+
+    for (const email of emails) {
+      try {
+        await axios.post(
+          `http://localhost:5000/api/workspaces/${createdWorkspace._id || createdWorkspace.id}/invite`,
+          { email },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        invitedCount += 1;
+      } catch (error: any) {
+        inviteFailures.push(error.response?.data?.message || "Invitation failed.");
+      }
+    }
+
+    if (emails.length === 0) {
+      setFeedback("Workspace created successfully.");
+      setFeedbackType("success");
+    } else if (inviteFailures.length === 0) {
+      setFeedback(`Workspace created and ${invitedCount} member${invitedCount === 1 ? "" : "s"} invited successfully.`);
+      setFeedbackType("success");
+    } else {
+      setFeedback(`Workspace created. ${invitedCount} invite${invitedCount === 1 ? "" : "s"} succeeded. ${inviteFailures[0]}`);
+      setFeedbackType("success");
+    }
 
     setCreated(true);
 
@@ -87,10 +135,10 @@ function WorkspaceModal({
     }, 1000);
 
   } catch (error: any) {
-    alert(
-      error.response?.data?.message ||
-      "Workspace Creation Failed ❌"
-    );
+    setFeedback(error.response?.data?.message || "Workspace Creation Failed ❌");
+    setFeedbackType("error");
+  } finally {
+    setIsCreating(false);
   }
 };
 
@@ -137,7 +185,12 @@ function WorkspaceModal({
               </div>
               <div>
                 <label className="block text-[#CBD5E1] text-sm mb-2">Invite Members</label>
-                <input placeholder="Comma-separated emails…" className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 transition-all" />
+                <input
+                  value={inviteEmails}
+                  onChange={(e) => setInviteEmails(e.target.value)}
+                  placeholder="Comma, semicolon or newline separated emails…"
+                  className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 transition-all"
+                />
               </div>
               <div>
                 <label className="block text-[#CBD5E1] text-sm mb-2">Default Role</label>
@@ -146,13 +199,124 @@ function WorkspaceModal({
                   <option className="bg-[#1E293B]">Admin</option>
                 </select>
               </div>
+              {feedback ? (
+                <p className={`text-sm ${feedbackType === "error" ? "text-[#F87171]" : "text-[#86EFAC]"}`}>{feedback}</p>
+              ) : null}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 border border-[#6366F1]/25 text-[#94A3B8] hover:text-white py-2.5 rounded-xl text-sm font-medium transition-all">Cancel</button>
-                <button type="submit" className="flex-1 bg-[#6366F1] hover:bg-[#5558E8] text-white py-2.5 rounded-xl text-sm font-medium transition-all hover:shadow-lg hover:shadow-[#6366F1]/30">Create Workspace</button>
+                <button type="submit" disabled={isCreating} className="flex-1 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-70 text-white py-2.5 rounded-xl text-sm font-medium transition-all hover:shadow-lg hover:shadow-[#6366F1]/30">{isCreating ? "Creating..." : "Create Workspace"}</button>
               </div>
               <p className="text-center text-[#475569] text-xs">By creating a workspace, you agree to our <span className="text-[#6366F1] cursor-pointer">Terms of Service</span>.</p>
             </form>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ChannelModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  workspaceId: string;
+  onChannelCreated: (channel: any) => void;
+};
+
+function ChannelModal({ isOpen, onClose, workspaceId, onChannelCreated }: ChannelModalProps) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      setName("");
+      setDescription("");
+      setError("");
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Channel name is required.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError("");
+
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        "http://localhost:5000/api/channels/create",
+        {
+          workspaceId,
+          name: trimmedName,
+          description: description.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      onChannelCreated(res.data.channel);
+      onClose();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Channel creation failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[#6366F1]/25 overflow-hidden shadow-2xl shadow-[#6366F1]/10"
+        style={{ background: "linear-gradient(135deg, rgba(30,41,59,0.98) 0%, rgba(15,23,42,0.99) 100%)" }}>
+        <div className="h-px bg-gradient-to-r from-transparent via-[#6366F1]/60 to-transparent" />
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-white font-semibold">Create a Channel</h3>
+              <p className="text-[#94A3B8] text-xs mt-0.5">Organize conversations around a topic or team.</p>
+            </div>
+            <button onClick={onClose} className="text-[#475569] hover:text-white transition-colors"><X size={18} /></button>
+          </div>
+
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <label className="block text-[#CBD5E1] text-sm mb-2">Channel Name</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. product-roadmap"
+                required
+                className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[#CBD5E1] text-sm mb-2">Description <span className="text-[#475569] font-normal">(optional)</span></label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What should this channel be used for?"
+                rows={3}
+                className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all resize-none"
+              />
+            </div>
+            {error ? <p className="text-sm text-[#F87171]">{error}</p> : null}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 border border-[#6366F1]/25 text-[#94A3B8] hover:text-white py-2.5 rounded-xl text-sm font-medium transition-all">Cancel</button>
+              <button type="submit" disabled={isSubmitting} className="flex-1 bg-[#6366F1] hover:bg-[#5558E8] disabled:opacity-70 text-white py-2.5 rounded-xl text-sm font-medium transition-all hover:shadow-lg hover:shadow-[#6366F1]/30">{isSubmitting ? "Creating..." : "Create Channel"}</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -185,8 +349,10 @@ export default function Dashboard() {
 
   const activeChannelRef = useRef("");
   const activeConversationRef = useRef<string | null>(null);
+  const activeWSRef = useRef("");
   const typingTimeoutRef = useRef<number | null>(null);
   const activeRoomRef = useRef<string | null>(null);
+  const activeWorkspaceRoomRef = useRef<string | null>(null);
 
   const getItemId = (item: any) => item?._id ?? item?.id ?? "";
 
@@ -360,10 +526,11 @@ export default function Dashboard() {
           }
         );
 
-        setWorkspaces(workspaceRes.data);
+        const nextWorkspaces = workspaceRes.data || [];
+        setWorkspaces(nextWorkspaces);
 
-        if (workspaceRes.data.length > 0) {
-          setActiveWS(getItemId(workspaceRes.data[0]));
+        if (nextWorkspaces.length > 0) {
+          setActiveWS(getItemId(nextWorkspaces[0]));
         }
 
         const usersRes = await axios.get("http://localhost:5000/api/users", {
@@ -381,34 +548,74 @@ export default function Dashboard() {
     fetchDashboard();
   }, []);
 
-useEffect(() => {
-  const fetchChannels = async () => {
-    try {
-      if (!activeWS) return;
+const refreshChannels = async (selectedChannelId?: string | null) => {
+  if (!activeWS) return;
 
-      const token = localStorage.getItem("token");
+  try {
+    const token = localStorage.getItem("token");
 
-      const res = await axios.get(
-        `http://localhost:5000/api/channels/${activeWS}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setChannels(res.data);
-      console.log("Channels:", res.data);
-      if (res.data.length > 0) {
-        setActiveChannel((prev) => prev || getItemId(res.data[0]));
+    const res = await axios.get(
+      `http://localhost:5000/api/channels/${activeWS}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
+    );
 
-    } catch (error) {
-      console.log(error);
+    const nextChannels = res.data || [];
+    setChannels(nextChannels);
+
+    if (selectedChannelId) {
+      setActiveChannel(selectedChannelId);
+    } else if (nextChannels.length > 0) {
+      const activeChannelStillExists = nextChannels.some((channel: any) => getItemId(channel) === activeChannel);
+      if (!activeChannel || !activeChannelStillExists) {
+        setActiveChannel(getItemId(nextChannels[0]));
+      }
+    } else {
+      setActiveChannel("");
     }
-  };
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-  fetchChannels();
+const refreshWorkspaces = async (preferredWorkspaceId?: string | null) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await axios.get("http://localhost:5000/api/workspaces", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const nextWorkspaces = res.data || [];
+    setWorkspaces(nextWorkspaces);
+
+    if (preferredWorkspaceId && nextWorkspaces.some((workspace: any) => getItemId(workspace) === preferredWorkspaceId)) {
+      setActiveWS(preferredWorkspaceId);
+      return;
+    }
+
+    if (nextWorkspaces.length > 0) {
+      const currentSelectionStillExists = nextWorkspaces.some((workspace: any) => getItemId(workspace) === activeWSRef.current);
+      if (activeWSRef.current && currentSelectionStillExists) {
+        setActiveWS(activeWSRef.current);
+      } else {
+        setActiveWS(getItemId(nextWorkspaces[0]));
+      }
+    } else {
+      setActiveWS("");
+    }
+  } catch (error) {
+    console.error("Failed to refresh workspaces", error);
+  }
+};
+
+useEffect(() => {
+  refreshChannels();
 }, [activeWS]);
 
 useEffect(() => {
@@ -417,9 +624,11 @@ useEffect(() => {
 }, [activeChannel]);
 
   const [showModal, setShowModal] = useState(false);
+  const [showChannelModal, setShowChannelModal] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [search, setSearch] = useState("");
+  const [channelFeedback, setChannelFeedback] = useState("");
 
   const emitTypingStatus = (
     isTyping: boolean,
@@ -468,6 +677,20 @@ useEffect(() => {
       channelId,
     });
   };
+
+  useEffect(() => {
+    activeWSRef.current = activeWS;
+  }, [activeWS]);
+
+  useEffect(() => {
+    if (!channelFeedback) return;
+
+    const timer = window.setTimeout(() => {
+      setChannelFeedback("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [channelFeedback]);
 
   const sendMessage = async () => {
     
@@ -563,6 +786,20 @@ useEffect(() => {
   }, [activeConversation, activeChannel, socketReady]);
 
   useEffect(() => {
+    if (!socketReady || !socketRef.current || !activeWS) return;
+
+    const previousWorkspaceRoom = activeWorkspaceRoomRef.current;
+    const nextWorkspaceRoomName = `workspace:${activeWS}`;
+
+    if (previousWorkspaceRoom && previousWorkspaceRoom !== nextWorkspaceRoomName) {
+      socketRef.current.emit("leave-room", { roomName: previousWorkspaceRoom });
+    }
+
+    socketRef.current.emit("join-room", { roomName: nextWorkspaceRoomName });
+    activeWorkspaceRoomRef.current = nextWorkspaceRoomName;
+  }, [activeWS, socketReady]);
+
+  useEffect(() => {
     const socketInstance = io("http://localhost:5000");
     socketRef.current = socketInstance;
 
@@ -607,6 +844,23 @@ useEffect(() => {
           return [...prev, mapServerMessage(newMessage)];
         });
       }
+    });
+
+    socketInstance.on("new-channel", ({ workspaceId, channel }: any) => {
+      if (!workspaceId || !channel) return;
+      if (workspaceId?.toString() !== activeWSRef.current?.toString()) return;
+
+      setChannels((prev: any[]) => {
+        const alreadyExists = prev.some((existingChannel: any) => getItemId(existingChannel) === getItemId(channel));
+        return alreadyExists ? prev : [...prev, channel];
+      });
+
+      setChannelFeedback(`Channel "${channel.name}" is now available.`);
+    });
+
+    socketInstance.on("workspace-invited", ({ workspace }: any) => {
+      if (!workspace) return;
+      refreshWorkspaces(activeWSRef.current || getItemId(workspace));
     });
 
     socketInstance.on("user-typing", ({ senderId, senderName, conversationId, channelId }: any) => {
@@ -762,6 +1016,20 @@ useEffect(() => {
   />
 )}
 
+      <ChannelModal
+        isOpen={showChannelModal}
+        onClose={() => setShowChannelModal(false)}
+        workspaceId={activeWS}
+        onChannelCreated={async (channel: any) => {
+          await refreshChannels(getItemId(channel));
+          setActiveConversation(null);
+          setSelectedDmUser(null);
+          setDmMessages([]);
+          setShowChannelModal(false);
+          setChannelFeedback(`Channel "${channel.name}" created successfully.`);
+        }}
+      />
+
       {/* Workspace rail */}
       <div className="w-16 bg-[#0B1120] border-r border-[#6366F1]/10 flex flex-col items-center py-4 gap-2 flex-shrink-0">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center mb-2 cursor-pointer" onClick={() => navigate("/")}>
@@ -823,8 +1091,14 @@ useEffect(() => {
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 scrollbar-hidden">
           <div className="px-2 py-1.5 flex items-center justify-between">
             <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Channels</span>
-            <button className="text-[#475569] hover:text-[#94A3B8] transition-colors"><Plus size={13} /></button>
+            <button onClick={() => setShowChannelModal(true)} className="text-[#475569] hover:text-[#94A3B8] transition-colors"><Plus size={13} /></button>
           </div>
+
+          {channelFeedback ? (
+            <div className="mx-2 mb-2 rounded-lg border border-[#10B981]/20 bg-[#10B981]/10 px-2 py-2 text-[11px] text-[#86EFAC]">
+              {channelFeedback}
+            </div>
+          ) : null}
 
           {channels.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())).map((ch: any) => {
             const channelId = getItemId(ch);

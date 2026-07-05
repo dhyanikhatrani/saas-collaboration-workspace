@@ -47,8 +47,10 @@ export default function RegisterPage() {
 
     navigate("/login");
   } catch (error: any) {
+    console.error("Registration error:", error);
     alert(
       error.response?.data?.message ||
+      error.message ||
       "Registration Failed ❌"
     );
   } finally {
