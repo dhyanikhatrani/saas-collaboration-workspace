@@ -34,6 +34,94 @@ router.post("/send", authMiddleware, async (req, res) => {
   }
 });
 
+// Edit an existing message
+router.patch('/:messageId', authMiddleware, async (req, res) => {
+  try {
+    const { content } = req.body;
+    const trimmedContent = (content || '').trim();
+
+    if (!trimmedContent) {
+      return res.status(400).json({ message: 'Message content cannot be empty.' });
+    }
+
+    const message = await Message.findById(req.params.messageId);
+
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    if (message.sender.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You can only edit your own messages.' });
+    }
+
+    if (message.isDeleted) {
+      return res.status(400).json({ message: 'This message has already been deleted.' });
+    }
+
+    message.content = trimmedContent;
+    message.edited = true;
+    message.editedAt = new Date();
+    message.isDeleted = false;
+    message.deletedAt = null;
+    await message.save();
+
+    const populatedMessage = await Message.findById(message._id).populate('sender', 'name email');
+    const io = req.app.get('io');
+
+    if (message.channel) {
+      io.to(`channel:${message.channel.toString()}`).emit('message-updated', populatedMessage);
+    }
+
+    if (message.conversation) {
+      io.to(`conversation:${message.conversation.toString()}`).emit('message-updated', populatedMessage);
+    }
+
+    res.status(200).json({ success: true, message: populatedMessage });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Soft delete a message
+router.delete('/:messageId', authMiddleware, async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.messageId);
+
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    if (message.sender.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You can only delete your own messages.' });
+    }
+
+    if (message.isDeleted) {
+      const populatedMessage = await Message.findById(message._id).populate('sender', 'name email');
+      return res.status(200).json({ success: true, message: populatedMessage });
+    }
+
+    message.content = 'This message was deleted';
+    message.isDeleted = true;
+    message.deletedAt = new Date();
+    await message.save();
+
+    const populatedMessage = await Message.findById(message._id).populate('sender', 'name email');
+    const io = req.app.get('io');
+
+    if (message.channel) {
+      io.to(`channel:${message.channel.toString()}`).emit('message-deleted', populatedMessage);
+    }
+
+    if (message.conversation) {
+      io.to(`conversation:${message.conversation.toString()}`).emit('message-deleted', populatedMessage);
+    }
+
+    res.status(200).json({ success: true, message: populatedMessage });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get all registered users (except current user)
 router.get("/users", authMiddleware, async (req, res) => {
   try {

@@ -345,6 +345,9 @@ export default function Dashboard() {
   const [userData, setUserData] = useState<any>(null);
   const [typingUser, setTypingUser] = useState("");
   const [socketReady, setSocketReady] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageDraft, setEditingMessageDraft] = useState("");
+  const [messageActionError, setMessageActionError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeChannelRef = useRef("");
@@ -365,14 +368,19 @@ export default function Dashboard() {
       hour: "2-digit",
       minute: "2-digit",
     }),
-    content: msg.content || msg.fileName || "",
-    file: msg.fileName
+    content: msg.isDeleted ? "This message was deleted" : msg.content || msg.fileName || "",
+    file: msg.fileName && !msg.isDeleted
       ? {
           name: msg.fileName,
           url: msg.fileUrl ? `http://localhost:5000${msg.fileUrl}` : "",
           type: msg.fileType,
         }
       : undefined,
+    senderId: msg.sender?._id || msg.sender?.id || "",
+    isEdited: Boolean(msg.edited),
+    isDeleted: Boolean(msg.isDeleted),
+    editedAt: msg.editedAt,
+    deletedAt: msg.deletedAt,
   });
 
   const getStoredUser = () => {
@@ -676,6 +684,27 @@ useEffect(() => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
 
+  const applyMessageUpdate = (updatedMessage: any) => {
+    if (!updatedMessage?._id && !updatedMessage?.id) return;
+
+    const mappedMessage = mapServerMessage(updatedMessage);
+    const messageId = mappedMessage.id;
+
+    setMessages((prev: any[]) => {
+      if (prev.some((message: any) => message.id === messageId)) {
+        return prev.map((message: any) => (message.id === messageId ? { ...message, ...mappedMessage } : message));
+      }
+      return prev;
+    });
+
+    setDmMessages((prev: any[]) => {
+      if (prev.some((message: any) => message.id === messageId)) {
+        return prev.map((message: any) => (message.id === messageId ? { ...message, ...mappedMessage } : message));
+      }
+      return prev;
+    });
+  };
+
   const emitTypingStatus = (
     isTyping: boolean,
     conversationId?: string | null,
@@ -729,6 +758,12 @@ useEffect(() => {
   }, [activeWS]);
 
   useEffect(() => {
+    setEditingMessageId(null);
+    setEditingMessageDraft("");
+    setMessageActionError("");
+  }, [activeChannel, activeConversation]);
+
+  useEffect(() => {
     if (!channelFeedback) return;
 
     const timer = window.setTimeout(() => {
@@ -737,6 +772,71 @@ useEffect(() => {
 
     return () => window.clearTimeout(timer);
   }, [channelFeedback]);
+
+  const handleEditMessage = (message: any) => {
+    if (!message || message.isDeleted) return;
+    setEditingMessageId(message.id);
+    setEditingMessageDraft(message.content || "");
+    setMessageActionError("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingMessageDraft("");
+    setMessageActionError("");
+  };
+
+  const handleSaveEdit = async (message: any) => {
+    if (!message) return;
+
+    const trimmedDraft = editingMessageDraft.trim();
+    if (!trimmedDraft) {
+      setMessageActionError("Message content cannot be empty.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.patch(
+        `http://localhost:5000/api/messages/${message.id}`,
+        { content: trimmedDraft },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const updatedMessage = res.data?.message || res.data;
+      applyMessageUpdate(updatedMessage);
+      setEditingMessageId(null);
+      setEditingMessageDraft("");
+      setMessageActionError("");
+    } catch (error: any) {
+      setMessageActionError(error.response?.data?.message || "Unable to edit message.");
+    }
+  };
+
+  const handleDeleteMessage = async (message: any) => {
+    if (!message || message.isDeleted) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.delete(`http://localhost:5000/api/messages/${message.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const deletedMessage = res.data?.message || res.data;
+      applyMessageUpdate(deletedMessage);
+      setEditingMessageId(null);
+      setEditingMessageDraft("");
+      setMessageActionError("");
+    } catch (error: any) {
+      setMessageActionError(error.response?.data?.message || "Unable to delete message.");
+    }
+  };
 
   const handleInviteMembers = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1056,6 +1156,14 @@ useEffect(() => {
           return [...prev, mapServerMessage(newMessage)];
         });
       }
+    });
+
+    socketInstance.on("message-updated", (updatedMessage: any) => {
+      applyMessageUpdate(updatedMessage);
+    });
+
+    socketInstance.on("message-deleted", (deletedMessage: any) => {
+      applyMessageUpdate(deletedMessage);
     });
 
     socketInstance.on("new-channel", ({ workspaceId, channel }: any) => {
@@ -1588,6 +1696,9 @@ useEffect(() => {
 
           {activeMessages.map((msg, idx) => {
             const showAvatar = idx === 0 || activeMessages[idx-1].user !== msg.user;
+            const currentUser = getStoredUser();
+            const currentUserId = currentUser?._id || currentUser?.id || "";
+            const isOwnMessage = msg.senderId && currentUserId && msg.senderId.toString() === currentUserId.toString();
             return (
               <div key={msg.id} className={`flex gap-3 group ${!showAvatar ? 'ml-11' : ''}`}>
                 {showAvatar && (
@@ -1600,9 +1711,31 @@ useEffect(() => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-white text-sm font-semibold">{msg.user}</span>
                       <span className="text-[#475569] text-xs">{msg.time}</span>
+                      {msg.isEdited && <span className="text-[#475569] text-[11px]">(edited)</span>}
                     </div>
                   )}
-                  <p className="text-[#CBD5E1] text-sm leading-relaxed">{msg.content}</p>
+                  {editingMessageId === msg.id ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={editingMessageDraft}
+                        onChange={(e) => setEditingMessageDraft(e.target.value)}
+                        className="w-full rounded-xl border border-[#6366F1]/20 bg-[#0F172A] px-3 py-2 text-sm text-[#F8FAFC] outline-none focus:border-[#6366F1]/50"
+                        rows={3}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => handleSaveEdit(msg)} className="rounded-lg bg-[#6366F1] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#5558E8]">Save</button>
+                        <button onClick={handleCancelEdit} className="rounded-lg border border-[#6366F1]/20 px-3 py-1.5 text-xs text-[#94A3B8] transition-colors hover:text-white">Cancel</button>
+                      </div>
+                      {messageActionError ? <p className="text-xs text-[#F87171]">{messageActionError}</p> : null}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className={`text-sm leading-relaxed ${msg.isDeleted ? 'text-[#64748B] italic' : 'text-[#CBD5E1]'}`}>{msg.content}</p>
+                      {msg.isEdited && !msg.isDeleted && (
+                        <span className="mt-1 inline-block text-[11px] text-[#475569]">(edited)</span>
+                      )}
+                    </div>
+                  )}
                   {msg.file && (
                     <div className="mt-2 bg-[#1E293B] border border-[#6366F1]/15 rounded-2xl overflow-hidden transition-all">
                       {isImageFile(msg.file.type) ? (
@@ -1650,9 +1783,12 @@ useEffect(() => {
                   <button className="w-7 h-7 rounded-lg bg-[#1E293B] hover:bg-[#263148] border border-[#6366F1]/10 flex items-center justify-center transition-colors">
                     <Bookmark size={12} className="text-[#475569]" />
                   </button>
-                  <button className="w-7 h-7 rounded-lg bg-[#1E293B] hover:bg-[#263148] border border-[#6366F1]/10 flex items-center justify-center transition-colors">
-                    <MoreHorizontal size={12} className="text-[#475569]" />
-                  </button>
+                  {isOwnMessage && !msg.isDeleted && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleEditMessage(msg)} className="rounded-lg bg-[#1E293B] px-2 py-1 text-[11px] text-[#94A3B8] transition-colors hover:bg-[#263148] hover:text-white">Edit</button>
+                      <button onClick={() => handleDeleteMessage(msg)} className="rounded-lg bg-[#1E293B] px-2 py-1 text-[11px] text-[#FCA5A5] transition-colors hover:bg-[#263148]">Delete</button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
