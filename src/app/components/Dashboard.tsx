@@ -614,6 +614,29 @@ const refreshWorkspaces = async (preferredWorkspaceId?: string | null) => {
   }
 };
 
+const fetchWorkspaceMembers = async (workspaceId?: string | null) => {
+  if (!workspaceId) {
+    setWorkspaceMembers([]);
+    return;
+  }
+
+  try {
+    setWorkspaceMembersLoading(true);
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`http://localhost:5000/api/workspaces/${workspaceId}/members`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    setWorkspaceMembers(res.data || []);
+  } catch (error) {
+    console.error("Failed to load workspace members", error);
+    setWorkspaceMembers([]);
+  } finally {
+    setWorkspaceMembersLoading(false);
+  }
+};
+
 useEffect(() => {
   refreshChannels();
 }, [activeWS]);
@@ -625,10 +648,16 @@ useEffect(() => {
 
   const [showModal, setShowModal] = useState(false);
   const [showChannelModal, setShowChannelModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [search, setSearch] = useState("");
   const [channelFeedback, setChannelFeedback] = useState("");
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
+  const [workspaceMembersLoading, setWorkspaceMembersLoading] = useState(false);
+  const [memberInviteInput, setMemberInviteInput] = useState("");
+  const [memberFeedback, setMemberFeedback] = useState("");
+  const [memberFeedbackType, setMemberFeedbackType] = useState<"success" | "error" | "">("");
 
   const emitTypingStatus = (
     isTyping: boolean,
@@ -691,6 +720,70 @@ useEffect(() => {
 
     return () => window.clearTimeout(timer);
   }, [channelFeedback]);
+
+  const handleInviteMembers = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!activeWS) return;
+
+    const emails = memberInviteInput
+      .split(/[\n,;]+/)
+      .map((email) => email.trim())
+      .filter(Boolean);
+
+    if (!emails.length) {
+      setMemberFeedback("Enter at least one email address.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `http://localhost:5000/api/workspaces/${activeWS}/invite`,
+        { emails },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await refreshWorkspaces(activeWS);
+      await fetchWorkspaceMembers(activeWS);
+      setMemberInviteInput("");
+      setMemberFeedback(res.data?.message || "Invitations sent successfully.");
+      setMemberFeedbackType("success");
+    } catch (error: any) {
+      setMemberFeedback(error.response?.data?.message || "Failed to invite members.");
+      setMemberFeedbackType("error");
+    }
+  };
+
+  const handleLeaveWorkspace = async () => {
+    if (!activeWS) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `http://localhost:5000/api/workspaces/${activeWS}/leave`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await refreshWorkspaces();
+      setShowMembersModal(false);
+      setMemberFeedback("You left the workspace successfully.");
+      setMemberFeedbackType("success");
+    } catch (error: any) {
+      setMemberFeedback(error.response?.data?.message || "Unable to leave workspace.");
+      setMemberFeedbackType("error");
+    }
+  };
 
   const sendMessage = async () => {
     
@@ -1030,6 +1123,82 @@ useEffect(() => {
         }}
       />
 
+      {showMembersModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-[#6366F1]/25 overflow-hidden shadow-2xl shadow-[#6366F1]/10"
+            style={{ background: "linear-gradient(135deg, rgba(30,41,59,0.98) 0%, rgba(15,23,42,0.99) 100%)" }}>
+            <div className="h-px bg-gradient-to-r from-transparent via-[#6366F1]/60 to-transparent" />
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-white font-semibold">Workspace Members</h3>
+                  <p className="text-[#94A3B8] text-xs mt-0.5">Manage access for {ws?.name || "this workspace"}</p>
+                </div>
+                <button onClick={() => setShowMembersModal(false)} className="text-[#475569] hover:text-white transition-colors"><X size={18} /></button>
+              </div>
+
+              {memberFeedback ? (
+                <div className={`mb-4 rounded-xl border px-3 py-2 text-sm ${memberFeedbackType === "error" ? "border-[#F87171]/20 bg-[#F87171]/10 text-[#FCA5A5]" : "border-[#10B981]/20 bg-[#10B981]/10 text-[#86EFAC]"}`}>
+                  {memberFeedback}
+                </div>
+              ) : null}
+
+              <form onSubmit={handleInviteMembers} className="space-y-3">
+                <div>
+                  <label className="block text-[#CBD5E1] text-sm mb-2">Invite Members</label>
+                  <input
+                    value={memberInviteInput}
+                    onChange={(e) => setMemberInviteInput(e.target.value)}
+                    placeholder="alice@example.com, bob@example.com"
+                    className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button type="submit" className="rounded-xl bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#5558E8]">Invite</button>
+                </div>
+              </form>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Members</span>
+                  <span className="text-[#94A3B8] text-xs">{workspaceMembers.length}</span>
+                </div>
+
+                {workspaceMembersLoading ? (
+                  <div className="text-sm text-[#94A3B8]">Loading members…</div>
+                ) : workspaceMembers.length === 0 ? (
+                  <div className="text-sm text-[#94A3B8]">No members found yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {workspaceMembers.map((member: any) => (
+                      <div key={member._id} className="flex items-center justify-between rounded-xl border border-[#6366F1]/10 bg-[#0F172A]/60 px-3 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] text-xs font-bold text-white">
+                            {getInitials(member.name)}
+                          </div>
+                          <div>
+                            <div className="text-sm text-white">{member.name}</div>
+                            <div className="text-xs text-[#94A3B8]">{member.email}</div>
+                          </div>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${member.role === "Owner" ? "bg-[#6366F1]/15 text-[#C7D2FE]" : "bg-[#10B981]/10 text-[#86EFAC]"}`}>
+                          {member.role}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex items-center justify-between border-t border-[#6366F1]/10 pt-4">
+                <p className="text-xs text-[#475569]">Invite existing users by email to grow this workspace.</p>
+                <button onClick={handleLeaveWorkspace} className="rounded-xl border border-[#F87171]/20 px-3 py-2 text-sm text-[#FCA5A5] transition-colors hover:bg-[#F87171]/10">Leave Workspace</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Workspace rail */}
       <div className="w-16 bg-[#0B1120] border-r border-[#6366F1]/10 flex flex-col items-center py-4 gap-2 flex-shrink-0">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center mb-2 cursor-pointer" onClick={() => navigate("/")}>
@@ -1073,7 +1242,10 @@ useEffect(() => {
       <div className="w-56 bg-[#0D1829] border-r border-[#6366F1]/10 flex flex-col flex-shrink-0">
         {/* Workspace header */}
         <div className="px-4 py-4 border-b border-[#6366F1]/10">
-          <button className="w-full flex items-center justify-between hover:bg-[#1E293B]/40 rounded-lg px-1 py-1 transition-colors group">
+          <button onClick={async () => {
+            setShowMembersModal(true);
+            await fetchWorkspaceMembers(activeWS);
+          }} className="w-full flex items-center justify-between hover:bg-[#1E293B]/40 rounded-lg px-1 py-1 transition-colors group">
             <span className="text-white font-semibold text-sm truncate">{ws?.name}</span>
             <ChevronDown size={14} className="text-[#94A3B8] group-hover:text-white transition-colors flex-shrink-0" />
           </button>

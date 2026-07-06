@@ -7,6 +7,21 @@ const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const normalizeEmails = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === "string" ? entry.trim().toLowerCase() : ""))
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,;]+/)
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+  }
+  return [];
+};
 
 // Create Workspace
 router.post("/create", authMiddleware, async (req, res) => {
@@ -34,24 +49,19 @@ router.post("/create", authMiddleware, async (req, res) => {
   }
 });
 
-// Invite a user to a workspace
+// Invite one or more users to a workspace
 router.post("/:workspaceId/invite", authMiddleware, async (req, res) => {
   try {
     const { workspaceId } = req.params;
-    const { email } = req.body;
+    const { email, emails } = req.body;
+    const requestedEmails = normalizeEmails(emails || email);
 
     if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
       return res.status(400).json({ message: "Invalid workspace ID." });
     }
 
-    const trimmedEmail = (email || "").trim().toLowerCase();
-
-    if (!trimmedEmail) {
-      return res.status(400).json({ message: "Email is required." });
-    }
-
-    if (!isValidEmail(trimmedEmail)) {
-      return res.status(400).json({ message: "Invalid email format." });
+    if (!requestedEmails.length) {
+      return res.status(400).json({ message: "At least one email is required." });
     }
 
     const workspace = await Workspace.findById(workspaceId);
@@ -64,40 +74,149 @@ router.post("/:workspaceId/invite", authMiddleware, async (req, res) => {
       return res.status(403).json({ message: "Only the workspace owner can invite members." });
     }
 
-    const invitedUser = await User.findOne({ email: trimmedEmail });
+    const uniqueEmails = [...new Set(requestedEmails)];
+    const invitedUserIds = [];
+    const errors = [];
 
-    if (!invitedUser) {
-      return res.status(404).json({ message: "User not found." });
+    for (const candidateEmail of uniqueEmails) {
+      if (!isValidEmail(candidateEmail)) {
+        errors.push(`${candidateEmail} is not a valid email address.`);
+        continue;
+      }
+
+      const invitedUser = await User.findOne({ email: candidateEmail });
+
+      if (!invitedUser) {
+        errors.push(`${candidateEmail} was not found.`);
+        continue;
+      }
+
+      if (invitedUser._id.toString() === workspace.owner.toString()) {
+        errors.push("You cannot invite yourself as a member.");
+        continue;
+      }
+
+      const isAlreadyMember = workspace.members.some(
+        (memberId) => memberId.toString() === invitedUser._id.toString()
+      );
+
+      if (isAlreadyMember) {
+        errors.push(`${candidateEmail} is already a member of this workspace.`);
+        continue;
+      }
+
+      workspace.members.push(invitedUser._id);
+      invitedUserIds.push(invitedUser._id.toString());
     }
 
-    if (invitedUser._id.toString() === workspace.owner.toString()) {
-      return res.status(400).json({ message: "You cannot invite yourself as a member." });
+    if (workspace.members.length) {
+      await workspace.save();
     }
-
-    const isAlreadyMember = workspace.members.some(
-      (memberId) => memberId.toString() === invitedUser._id.toString()
-    );
-
-    if (isAlreadyMember) {
-      return res.status(409).json({ message: "User is already a member of this workspace." });
-    }
-
-    workspace.members.push(invitedUser._id);
-    await workspace.save();
 
     const io = req.app.get("io");
-    io.to(invitedUser._id.toString()).emit("workspace-invited", {
-      workspace,
+    invitedUserIds.forEach((userId) => {
+      io.to(userId).emit("workspace-invited", { workspace });
     });
 
     res.status(200).json({
-      message: "User invited successfully",
+      message: invitedUserIds.length > 0 ? "Invites processed successfully" : "No invitations were created",
       workspace,
+      invitedUserIds,
+      errors,
     });
   } catch (error) {
     res.status(500).json({
       message: error.message,
     });
+  }
+});
+
+// Get workspace members
+router.get("/:workspaceId/members", authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ message: "Invalid workspace ID." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId)
+      .populate("owner", "name email")
+      .populate("members", "name email");
+
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    const isAuthorized = workspace.owner?._id?.toString() === req.user.id ||
+      workspace.members.some((member) => member?._id?.toString() === req.user.id);
+
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "You do not have access to this workspace." });
+    }
+
+    const ownerUser = workspace.owner
+      ? {
+          _id: workspace.owner._id,
+          name: workspace.owner.name,
+          email: workspace.owner.email,
+          avatar: workspace.owner.avatar || null,
+          role: "Owner",
+        }
+      : null;
+
+    const memberUsers = (workspace.members || [])
+      .filter((member) => member && member._id.toString() !== workspace.owner?._id?.toString())
+      .map((member) => ({
+        _id: member._id,
+        name: member.name,
+        email: member.email,
+        avatar: member.avatar || null,
+        role: "Member",
+      }));
+
+    const members = ownerUser ? [ownerUser, ...memberUsers] : memberUsers;
+
+    res.status(200).json(members);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Leave a workspace
+router.post("/:workspaceId/leave", authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ message: "Invalid workspace ID." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    if (workspace.owner.toString() === req.user.id) {
+      return res.status(403).json({ message: "The workspace owner cannot leave the workspace yet." });
+    }
+
+    const isMember = workspace.members.some((memberId) => memberId.toString() === req.user.id);
+
+    if (!isMember) {
+      return res.status(404).json({ message: "You are not a member of this workspace." });
+    }
+
+    workspace.members = workspace.members.filter((memberId) => memberId.toString() !== req.user.id);
+    await workspace.save();
+
+    res.status(200).json({
+      message: "You left the workspace successfully",
+      workspace,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
