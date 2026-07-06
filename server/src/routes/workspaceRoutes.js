@@ -183,6 +183,128 @@ router.get("/:workspaceId/members", authMiddleware, async (req, res) => {
   }
 });
 
+// Rename a workspace
+router.patch("/:workspaceId/rename", authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { name } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ message: "Invalid workspace ID." });
+    }
+
+    const trimmedName = (name || "").trim();
+
+    if (!trimmedName) {
+      return res.status(400).json({ message: "Workspace name is required." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    if (workspace.owner.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Only the workspace owner can rename the workspace." });
+    }
+
+    workspace.name = trimmedName;
+    await workspace.save();
+
+    res.status(200).json({
+      message: "Workspace renamed successfully",
+      workspace,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Remove a member from a workspace
+router.post("/:workspaceId/remove-member", authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { userId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ message: "Invalid workspace ID." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    if (workspace.owner.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Only the workspace owner can remove members." });
+    }
+
+    if (userId === workspace.owner.toString()) {
+      return res.status(400).json({ message: "The owner cannot be removed from the workspace." });
+    }
+
+    const isMember = workspace.members.some((memberId) => memberId.toString() === userId);
+
+    if (!isMember) {
+      return res.status(404).json({ message: "User is not a member of this workspace." });
+    }
+
+    workspace.members = workspace.members.filter((memberId) => memberId.toString() !== userId);
+    await workspace.save();
+
+    res.status(200).json({
+      message: "Member removed successfully",
+      workspace,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete a workspace
+router.delete("/:workspaceId", authMiddleware, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ message: "Invalid workspace ID." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    if (workspace.owner.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Only the workspace owner can delete the workspace." });
+    }
+
+    await Promise.all([
+      require("../models/Channel").deleteMany({ workspace: workspaceId }),
+      require("../models/Message").deleteMany({ channel: { $in: await require("../models/Channel").find({ workspace: workspaceId }).distinct("_id") } }),
+    ]);
+
+    await workspace.deleteOne();
+
+    const io = req.app.get("io");
+    io.emit("workspace-deleted", { workspaceId });
+
+    res.status(200).json({
+      message: "Workspace deleted successfully",
+      workspaceId,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Leave a workspace
 router.post("/:workspaceId/leave", authMiddleware, async (req, res) => {
   try {

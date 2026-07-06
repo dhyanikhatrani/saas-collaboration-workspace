@@ -617,6 +617,7 @@ const refreshWorkspaces = async (preferredWorkspaceId?: string | null) => {
 const fetchWorkspaceMembers = async (workspaceId?: string | null) => {
   if (!workspaceId) {
     setWorkspaceMembers([]);
+    setIsOwner(false);
     return;
   }
 
@@ -628,10 +629,22 @@ const fetchWorkspaceMembers = async (workspaceId?: string | null) => {
         Authorization: `Bearer ${token}`,
       },
     });
-    setWorkspaceMembers(res.data || []);
+
+    const members = res.data || [];
+    setWorkspaceMembers(members);
+
+    const currentUser = getStoredUser();
+    const currentUserId = currentUser?._id || currentUser?.id || "";
+    const nextIsOwner = members.some((member: any) => {
+      const memberId = member?._id || member?.id || "";
+      return member?.role === "Owner" && memberId.toString() === currentUserId.toString();
+    });
+
+    setIsOwner(nextIsOwner);
   } catch (error) {
     console.error("Failed to load workspace members", error);
     setWorkspaceMembers([]);
+    setIsOwner(false);
   } finally {
     setWorkspaceMembersLoading(false);
   }
@@ -658,6 +671,10 @@ useEffect(() => {
   const [memberInviteInput, setMemberInviteInput] = useState("");
   const [memberFeedback, setMemberFeedback] = useState("");
   const [memberFeedbackType, setMemberFeedbackType] = useState<"success" | "error" | "">("");
+  const [workspaceSettingsTab, setWorkspaceSettingsTab] = useState<"members" | "rename" | "danger">("members");
+  const [workspaceRenameInput, setWorkspaceRenameInput] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   const emitTypingStatus = (
     isTyping: boolean,
@@ -726,6 +743,12 @@ useEffect(() => {
 
     if (!activeWS) return;
 
+    if (!isOwner) {
+      setMemberFeedback("Only workspace owners can invite members.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
     const emails = memberInviteInput
       .split(/[\n,;]+/)
       .map((email) => email.trim())
@@ -781,6 +804,102 @@ useEffect(() => {
       setMemberFeedbackType("success");
     } catch (error: any) {
       setMemberFeedback(error.response?.data?.message || "Unable to leave workspace.");
+      setMemberFeedbackType("error");
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!activeWS) return;
+
+    if (!isOwner) {
+      setMemberFeedback("Only workspace owners can remove members.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `http://localhost:5000/api/workspaces/${activeWS}/remove-member`,
+        { userId: memberId },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await fetchWorkspaceMembers(activeWS);
+      await refreshWorkspaces(activeWS);
+      setMemberFeedback(res.data?.message || "Member removed successfully.");
+      setMemberFeedbackType("success");
+    } catch (error: any) {
+      setMemberFeedback(error.response?.data?.message || "Unable to remove member.");
+      setMemberFeedbackType("error");
+    }
+  };
+
+  const handleRenameWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!isOwner) {
+      setMemberFeedback("Only workspace owners can rename this workspace.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
+    if (!activeWS || !workspaceRenameInput.trim()) {
+      setMemberFeedback("Workspace name cannot be empty.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.patch(
+        `http://localhost:5000/api/workspaces/${activeWS}/rename`,
+        { name: workspaceRenameInput.trim() },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      await refreshWorkspaces(activeWS);
+      setWorkspaceRenameInput("");
+      setMemberFeedback(res.data?.message || "Workspace renamed successfully.");
+      setMemberFeedbackType("success");
+    } catch (error: any) {
+      setMemberFeedback(error.response?.data?.message || "Unable to rename workspace.");
+      setMemberFeedbackType("error");
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!activeWS) return;
+
+    if (!isOwner) {
+      setMemberFeedback("Only workspace owners can delete this workspace.");
+      setMemberFeedbackType("error");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.delete(`http://localhost:5000/api/workspaces/${activeWS}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      await refreshWorkspaces();
+      setShowMembersModal(false);
+      setShowDeleteConfirm(false);
+      setMemberFeedback(res.data?.message || "Workspace deleted successfully.");
+      setMemberFeedbackType("success");
+    } catch (error: any) {
+      setMemberFeedback(error.response?.data?.message || "Unable to delete workspace.");
       setMemberFeedbackType("error");
     }
   };
@@ -1131,8 +1250,8 @@ useEffect(() => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h3 className="text-white font-semibold">Workspace Members</h3>
-                  <p className="text-[#94A3B8] text-xs mt-0.5">Manage access for {ws?.name || "this workspace"}</p>
+                  <h3 className="text-white font-semibold">Workspace Settings</h3>
+                  <p className="text-[#94A3B8] text-xs mt-0.5">Manage access and settings for {ws?.name || "this workspace"}</p>
                 </div>
                 <button onClick={() => setShowMembersModal(false)} className="text-[#475569] hover:text-white transition-colors"><X size={18} /></button>
               </div>
@@ -1143,57 +1262,124 @@ useEffect(() => {
                 </div>
               ) : null}
 
-              <form onSubmit={handleInviteMembers} className="space-y-3">
-                <div>
-                  <label className="block text-[#CBD5E1] text-sm mb-2">Invite Members</label>
-                  <input
-                    value={memberInviteInput}
-                    onChange={(e) => setMemberInviteInput(e.target.value)}
-                    placeholder="alice@example.com, bob@example.com"
-                    className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all"
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <button type="submit" className="rounded-xl bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#5558E8]">Invite</button>
-                </div>
-              </form>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Members</span>
-                  <span className="text-[#94A3B8] text-xs">{workspaceMembers.length}</span>
-                </div>
-
-                {workspaceMembersLoading ? (
-                  <div className="text-sm text-[#94A3B8]">Loading members…</div>
-                ) : workspaceMembers.length === 0 ? (
-                  <div className="text-sm text-[#94A3B8]">No members found yet.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {workspaceMembers.map((member: any) => (
-                      <div key={member._id} className="flex items-center justify-between rounded-xl border border-[#6366F1]/10 bg-[#0F172A]/60 px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] text-xs font-bold text-white">
-                            {getInitials(member.name)}
-                          </div>
-                          <div>
-                            <div className="text-sm text-white">{member.name}</div>
-                            <div className="text-xs text-[#94A3B8]">{member.email}</div>
-                          </div>
-                        </div>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${member.role === "Owner" ? "bg-[#6366F1]/15 text-[#C7D2FE]" : "bg-[#10B981]/10 text-[#86EFAC]"}`}>
-                          {member.role}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              <div className="mb-5 flex gap-2 rounded-xl border border-[#6366F1]/10 bg-[#0F172A]/60 p-1">
+                <button onClick={() => setWorkspaceSettingsTab("members")} className={`rounded-lg px-3 py-2 text-sm transition-colors ${workspaceSettingsTab === "members" ? "bg-[#6366F1] text-white" : "text-[#94A3B8] hover:text-white"}`}>Members</button>
+                {isOwner && (
+                  <>
+                    <button onClick={() => setWorkspaceSettingsTab("rename")} className={`rounded-lg px-3 py-2 text-sm transition-colors ${workspaceSettingsTab === "rename" ? "bg-[#6366F1] text-white" : "text-[#94A3B8] hover:text-white"}`}>Rename</button>
+                    <button onClick={() => setWorkspaceSettingsTab("danger")} className={`rounded-lg px-3 py-2 text-sm transition-colors ${workspaceSettingsTab === "danger" ? "bg-[#6366F1] text-white" : "text-[#94A3B8] hover:text-white"}`}>Danger Zone</button>
+                  </>
                 )}
               </div>
 
+              {workspaceSettingsTab === "members" && (
+                <>
+                  {isOwner ? (
+                    <form onSubmit={handleInviteMembers} className="space-y-3">
+                      <div>
+                        <label className="block text-[#CBD5E1] text-sm mb-2">Invite Members</label>
+                        <input
+                          value={memberInviteInput}
+                          onChange={(e) => setMemberInviteInput(e.target.value)}
+                          placeholder="alice@example.com, bob@example.com"
+                          className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <button type="submit" className="rounded-xl bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#5558E8]">Invite</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="mb-4 rounded-xl border border-[#6366F1]/10 bg-[#0F172A]/60 px-3 py-3 text-sm text-[#94A3B8]">
+                      You can view members here. Only workspace owners can invite, remove, rename, or delete this workspace.
+                    </div>
+                  )}
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[#475569] text-xs font-semibold uppercase tracking-wider">Members</span>
+                      <span className="text-[#94A3B8] text-xs">{workspaceMembers.length}</span>
+                    </div>
+
+                    {workspaceMembersLoading ? (
+                      <div className="text-sm text-[#94A3B8]">Loading members…</div>
+                    ) : workspaceMembers.length === 0 ? (
+                      <div className="text-sm text-[#94A3B8]">No members found yet.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {workspaceMembers.map((member: any) => (
+                          <div key={member._id} className="flex items-center justify-between rounded-xl border border-[#6366F1]/10 bg-[#0F172A]/60 px-3 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] text-xs font-bold text-white">
+                                {getInitials(member.name)}
+                              </div>
+                              <div>
+                                <div className="text-sm text-white">{member.name}</div>
+                                <div className="text-xs text-[#94A3B8]">{member.email}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${member.role === "Owner" ? "bg-[#6366F1]/15 text-[#C7D2FE]" : "bg-[#10B981]/10 text-[#86EFAC]"}`}>
+                                {member.role}
+                              </span>
+                              {isOwner && member.role !== "Owner" && (
+                                <button onClick={() => handleRemoveMember(member._id)} className="rounded-lg border border-[#F87171]/20 px-2.5 py-1 text-[11px] text-[#FCA5A5] transition-colors hover:bg-[#F87171]/10">Remove</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {workspaceSettingsTab === "rename" && (
+                <form onSubmit={handleRenameWorkspace} className="space-y-4">
+                  <div>
+                    <label className="block text-[#CBD5E1] text-sm mb-2">Workspace Name</label>
+                    <input
+                      value={workspaceRenameInput}
+                      onChange={(e) => setWorkspaceRenameInput(e.target.value)}
+                      placeholder="Enter a new workspace name"
+                      className="w-full bg-[#263148] border border-[#6366F1]/15 rounded-xl px-4 py-3 text-white placeholder-[#475569] text-sm focus:outline-none focus:border-[#6366F1]/50 focus:ring-2 focus:ring-[#6366F1]/15 transition-all"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="submit" className="rounded-xl bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-all hover:bg-[#5558E8]">Save Name</button>
+                  </div>
+                </form>
+              )}
+
+              {workspaceSettingsTab === "danger" && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-[#F87171]/20 bg-[#F87171]/10 p-4">
+                    <h4 className="text-sm font-semibold text-[#FCA5A5]">Delete Workspace</h4>
+                    <p className="mt-1 text-sm text-[#FDE2E2]">This action cannot be undone. It will remove the workspace and related channels/messages.</p>
+                  </div>
+                  <div className="flex justify-end">
+                    <button onClick={() => setShowDeleteConfirm(true)} className="rounded-xl border border-[#F87171]/20 px-4 py-2 text-sm text-[#FCA5A5] transition-colors hover:bg-[#F87171]/10">Delete Workspace</button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-6 flex items-center justify-between border-t border-[#6366F1]/10 pt-4">
-                <p className="text-xs text-[#475569]">Invite existing users by email to grow this workspace.</p>
+                <p className="text-xs text-[#475569]">{isOwner ? "Only workspace owners can manage these settings." : "You are a member of this workspace."}</p>
                 <button onClick={handleLeaveWorkspace} className="rounded-xl border border-[#F87171]/20 px-3 py-2 text-sm text-[#FCA5A5] transition-colors hover:bg-[#F87171]/10">Leave Workspace</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#F87171]/20 bg-[#111827] p-6 shadow-2xl shadow-black/40">
+            <h3 className="text-white font-semibold">Delete this workspace?</h3>
+            <p className="mt-2 text-sm text-[#94A3B8]">This will permanently delete the workspace and its related channels and messages.</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} className="rounded-xl border border-[#6366F1]/20 px-4 py-2 text-sm text-[#94A3B8] transition-colors hover:text-white">Cancel</button>
+              <button onClick={handleDeleteWorkspace} className="rounded-xl bg-[#F43F5E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E11D48]">Delete</button>
             </div>
           </div>
         </div>
