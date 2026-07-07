@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Workspace = require("../models/Workspace");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
+const { createNotificationRecord } = require("../utils/notificationService");
 
 const router = express.Router();
 
@@ -113,10 +114,25 @@ router.post("/:workspaceId/invite", authMiddleware, async (req, res) => {
       await workspace.save();
     }
 
+    const senderUser = await User.findById(req.user.id).select("name");
+    const senderName = senderUser?.name || "A workspace owner";
+
     const io = req.app.get("io");
-    invitedUserIds.forEach((userId) => {
-      io.to(userId).emit("workspace-invited", { workspace });
-    });
+    for (const userId of invitedUserIds) {
+      const notification = await createNotificationRecord({
+        app: req.app,
+        recipientId: userId,
+        senderId: req.user.id,
+        workspaceId: workspace._id,
+        type: "invite",
+        title: "Workspace Invitation",
+        message: `${senderName} invited you to "${workspace.name}"`,
+      });
+
+      if (notification) {
+        io.to(userId).emit("workspace-invited", { workspace, notification });
+      }
+    }
 
     res.status(200).json({
       message: invitedUserIds.length > 0 ? "Invites processed successfully" : "No invitations were created",

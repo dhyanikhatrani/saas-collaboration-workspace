@@ -42,6 +42,22 @@ const getMessageColor = (name: string) => {
   return colors[index];
 };
 
+const formatRelativeTime = (value?: string) => {
+  if (!value) return "just now";
+
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+};
+
 type WorkspaceModalProps = {
   onClose: () => void;
   onWorkspaceCreated: (workspace: any) => void;
@@ -588,6 +604,7 @@ export default function Dashboard() {
         });
 
         setUsers(usersRes.data);
+        await refreshNotifications();
       } catch (error) {
         console.error(error);
       }
@@ -713,6 +730,8 @@ useEffect(() => {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [search, setSearch] = useState("");
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [channelFeedback, setChannelFeedback] = useState("");
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
   const [workspaceMembersLoading, setWorkspaceMembersLoading] = useState(false);
@@ -723,6 +742,119 @@ useEffect(() => {
   const [workspaceRenameInput, setWorkspaceRenameInput] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+
+  const refreshNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.get("http://localhost:5000/api/notifications", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const nextNotifications = res.data || [];
+      setNotifications(nextNotifications);
+      setUnreadCount(nextNotifications.filter((notification: any) => !notification.isRead).length);
+    } catch (error) {
+      console.error("Failed to load notifications", error);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.patch(
+        `http://localhost:5000/api/notifications/${notificationId}/read`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const updatedNotification = res.data;
+      setNotifications((prev: any[]) => {
+        const next = prev.map((notification: any) =>
+          notification._id === notificationId ? { ...notification, ...updatedNotification } : notification
+        );
+        setUnreadCount(next.filter((notification: any) => !notification.isRead).length);
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to mark notification as read", error);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.patch("http://localhost:5000/api/notifications/read-all", {}, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.data?.success) {
+        setNotifications((prev: any[]) => {
+          const next = prev.map((notification: any) => ({ ...notification, isRead: true }));
+          setUnreadCount(0);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error("Failed to mark all notifications as read", error);
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      await axios.delete(`http://localhost:5000/api/notifications/${notificationId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setNotifications((prev: any[]) => {
+        const next = prev.filter((notification: any) => notification._id !== notificationId);
+        setUnreadCount(next.filter((notification: any) => !notification.isRead).length);
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to delete notification", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: any) => {
+    if (!notification?.isRead) {
+      await markNotificationAsRead(notification._id);
+    }
+
+    setShowNotifs(false);
+
+    const targetWorkspaceId = notification?.workspace?._id || notification?.workspace || "";
+    const targetChannelId = notification?.channel?._id || notification?.channel || "";
+
+    if (targetWorkspaceId) {
+      setActiveWS(targetWorkspaceId);
+    }
+
+    if (targetChannelId) {
+      setActiveChannel(targetChannelId);
+      setActiveConversation(null);
+      setSelectedDmUser(null);
+      setDmMessages([]);
+    }
+  };
 
   const applyMessageUpdate = (updatedMessage: any) => {
     if (!updatedMessage?._id && !updatedMessage?.id) return;
@@ -1229,6 +1361,42 @@ useEffect(() => {
       refreshWorkspaces(activeWSRef.current || getItemId(workspace));
     });
 
+    socketInstance.on("notification-created", ({ notification }: any) => {
+      if (!notification) return;
+      setNotifications((prev: any[]) => {
+        const exists = prev.some((item: any) => getItemId(item) === getItemId(notification));
+        const next = exists ? prev.map((item: any) => (getItemId(item) === getItemId(notification) ? notification : item)) : [notification, ...prev];
+        setUnreadCount(next.filter((item: any) => !item.isRead).length);
+        return next;
+      });
+    });
+
+    socketInstance.on("notification-read", ({ notification }: any) => {
+      if (!notification) return;
+      setNotifications((prev: any[]) => {
+        const next = prev.map((item: any) => (getItemId(item) === getItemId(notification) ? notification : item));
+        setUnreadCount(next.filter((item: any) => !item.isRead).length);
+        return next;
+      });
+    });
+
+    socketInstance.on("notification-read-all", ({ updatedCount }: any) => {
+      setNotifications((prev: any[]) => {
+        const next = prev.map((item: any) => ({ ...item, isRead: true }));
+        setUnreadCount(0);
+        return next;
+      });
+    });
+
+    socketInstance.on("notification-deleted", ({ notificationId }: any) => {
+      if (!notificationId) return;
+      setNotifications((prev: any[]) => {
+        const next = prev.filter((item: any) => getItemId(item) !== notificationId);
+        setUnreadCount(next.filter((item: any) => !item.isRead).length);
+        return next;
+      });
+    });
+
     socketInstance.on("user-typing", ({ senderId, senderName, conversationId, channelId }: any) => {
       const storedUser = getStoredUser();
       const currentUserId = storedUser?._id || storedUser?.id || "";
@@ -1677,24 +1845,32 @@ useEffect(() => {
             <div className="relative">
               <button onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }} className="relative w-8 h-8 rounded-lg bg-[#1E293B] hover:bg-[#263148] flex items-center justify-center transition-colors">
                 <Bell size={15} className="text-[#94A3B8]" />
-                <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#EF4444] border border-[#0F172A]" />
+                {unreadCount > 0 ? (
+                  <div className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#EF4444] border border-[#0F172A] flex items-center justify-center text-[9px] text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </div>
+                ) : null}
               </button>
               {showNotifs && (
                 <div className="absolute right-0 top-10 w-72 bg-[#1E293B] border border-[#6366F1]/20 rounded-xl shadow-2xl shadow-black/40 z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-[#6366F1]/10 flex items-center justify-between">
                     <span className="text-white font-semibold text-sm">Notifications</span>
-                    <span className="text-[#6366F1] text-xs cursor-pointer hover:underline">Mark all read</span>
+                    <button onClick={markAllNotificationsRead} className="text-[#6366F1] text-xs cursor-pointer hover:underline">Mark all read</button>
                   </div>
-                  {[
-                    { text: "Sarah Chen mentioned you in #general", time: "2m ago", unread: true },
-                    { text: "New message in #design-sprint", time: "15m ago", unread: true },
-                    { text: "David Miller shared a file", time: "1h ago", unread: false },
-                  ].map((n, i) => (
-                    <div key={i} className={`px-4 py-3 flex gap-3 hover:bg-[#263148] cursor-pointer border-b border-[#6366F1]/5 transition-colors ${n.unread ? 'bg-[#6366F1]/5' : ''}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${n.unread ? 'bg-[#6366F1]' : 'bg-transparent'}`} />
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-[#94A3B8] text-sm">No notifications yet.</div>
+                  ) : notifications.map((notification: any) => (
+                    <div key={notification._id} onClick={() => handleNotificationClick(notification)} className={`px-4 py-3 flex gap-3 hover:bg-[#263148] cursor-pointer border-b border-[#6366F1]/5 transition-colors ${notification.isRead ? '' : 'bg-[#6366F1]/5'}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${notification.isRead ? 'bg-transparent' : 'bg-[#6366F1]'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[#CBD5E1] text-xs leading-relaxed">{n.text}</p>
-                        <p className="text-[#475569] text-xs mt-0.5">{n.time}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[#CBD5E1] text-xs leading-relaxed">{notification.title}</p>
+                          <button onClick={(event) => { event.stopPropagation(); deleteNotification(notification._id); }} className="text-[#475569] hover:text-white transition-colors">
+                            <X size={12} />
+                          </button>
+                        </div>
+                        <p className="text-[#CBD5E1] text-xs leading-relaxed mt-1">{notification.message}</p>
+                        <p className="text-[#475569] text-xs mt-1">{formatRelativeTime(notification.createdAt)}</p>
                       </div>
                     </div>
                   ))}

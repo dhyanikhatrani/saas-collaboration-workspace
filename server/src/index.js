@@ -13,6 +13,7 @@ const messageRoutes = require("./routes/messageRoutes");
 const userRoutes = require("./routes/userRoutes");
 const conversationRoutes = require("./routes/conversationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 
 const connectDB = require("./config/db");
@@ -34,6 +35,9 @@ console.log("Socket Server Created");
 app.set("io", io);
 
 const onlineUsers = new Map();
+const channelViewers = new Map();
+
+app.set("channelViewers", channelViewers);
 
 app.use(cors());
 app.use(express.json());
@@ -46,6 +50,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server Running 🚀");
@@ -58,6 +63,7 @@ io.on("connection", (socket) => {
 
     const userKey = userId.toString();
     onlineUsers.set(userKey, socket.id);
+    socket.data.userId = userKey;
     socket.join(userKey);
 
     console.log(`User ${userKey} is online with socket ${socket.id}`);
@@ -67,20 +73,47 @@ io.on("connection", (socket) => {
 
   socket.on("join-user-room", (userId) => {
     if (userId) {
-      socket.join(userId.toString());
-      console.log(`User ${userId} joined personal room`);
+      const userKey = userId.toString();
+      socket.data.userId = userKey;
+      socket.join(userKey);
+      console.log(`User ${userKey} joined personal room`);
     }
   });
 
   socket.on("join-room", ({ roomName }) => {
     if (!roomName) return;
     socket.join(roomName);
+
+    const userId = socket.data.userId;
+    if (roomName.startsWith("channel:") && userId) {
+      const channelId = roomName.replace("channel:", "");
+      const viewers = channelViewers.get(channelId) || new Set();
+      viewers.add(userId);
+      channelViewers.set(channelId, viewers);
+      console.log(`User ${userId} is viewing channel ${channelId}`);
+    }
+
     console.log(`Socket ${socket.id} joined room ${roomName}`);
   });
 
   socket.on("leave-room", ({ roomName }) => {
     if (!roomName) return;
     socket.leave(roomName);
+
+    const userId = socket.data.userId;
+    if (roomName.startsWith("channel:") && userId) {
+      const channelId = roomName.replace("channel:", "");
+      const viewers = channelViewers.get(channelId);
+      if (viewers) {
+        viewers.delete(userId);
+        if (viewers.size === 0) {
+          channelViewers.delete(channelId);
+        } else {
+          channelViewers.set(channelId, viewers);
+        }
+      }
+    }
+
     console.log(`Socket ${socket.id} left room ${roomName}`);
   });
 
@@ -130,6 +163,16 @@ io.on("connection", (socket) => {
       onlineUsers.delete(userId);
       console.log(`User ${userId} went offline`);
       io.emit("online-users", Array.from(onlineUsers.keys()));
+    }
+
+    const userId = socket.data.userId;
+    if (userId) {
+      for (const [channelId, viewers] of channelViewers.entries()) {
+        viewers.delete(userId);
+        if (viewers.size === 0) {
+          channelViewers.delete(channelId);
+        }
+      }
     }
   });
 });

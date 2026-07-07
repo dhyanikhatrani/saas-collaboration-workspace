@@ -4,6 +4,7 @@ const Conversation = require("../models/Conversation");
 const Channel = require("../models/Channel");
 const Workspace = require("../models/Workspace");
 const authMiddleware = require("../middleware/authMiddleware");
+const { createChannelMessageNotifications } = require("../utils/notificationService");
 
 const router = express.Router();
 
@@ -54,6 +55,20 @@ router.post("/send", authMiddleware, async (req, res) => {
 
     const io = req.app.get("io");
     io.emit("new-message", populatedMessage);
+
+    if (message.channel) {
+      const channel = await Channel.findById(message.channel);
+      const channelViewers = req.app.get("channelViewers") || new Map();
+      await createChannelMessageNotifications({
+        app: req.app,
+        senderId: req.user.id,
+        workspaceId: channel?.workspace,
+        channelId: message.channel,
+        messageId: message._id,
+        content,
+        channelViewers,
+      });
+    }
 
     res.status(201).json({
       success: true,
