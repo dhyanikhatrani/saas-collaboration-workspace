@@ -381,6 +381,9 @@ export default function Dashboard() {
     isDeleted: Boolean(msg.isDeleted),
     editedAt: msg.editedAt,
     deletedAt: msg.deletedAt,
+    status: msg.status || "sent",
+    seenBy: Array.isArray(msg.seenBy) ? msg.seenBy : [],
+    seenAt: msg.seenAt,
   });
 
   const getStoredUser = () => {
@@ -463,6 +466,41 @@ export default function Dashboard() {
 
   const isUserOnline = (userId: string) => onlineUserIds.includes(userId?.toString());
 
+  const markMessagesSeenInChannel = async (channelId: string, messageList: any[] = []) => {
+    if (!channelId || !messageList.length) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const storedUser = getStoredUser();
+      const currentUserId = storedUser?._id || storedUser?.id || "";
+      if (!currentUserId) return;
+
+      const pendingMessages = messageList.filter((msg: any) => {
+        const senderId = msg.senderId || msg.sender?._id || msg.sender?.id || "";
+        const isOwnMessage = senderId && currentUserId && senderId.toString() === currentUserId.toString();
+        const isDeleted = Boolean(msg.isDeleted);
+        const isSeen = msg.status === "seen" || (Array.isArray(msg.seenBy) && msg.seenBy.some((id: any) => id?.toString() === currentUserId.toString()));
+        return msg.id && !isOwnMessage && !isDeleted && !isSeen;
+      });
+
+      for (const message of pendingMessages) {
+        await axios.patch(
+          `http://localhost:5000/api/messages/${message.id}/seen`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.debug("Unable to mark channel messages as seen", error);
+    }
+  };
+
   const fetchMessages = async (channelId: string) => {
     if (!channelId) return;
     console.debug("fetchMessages", channelId);
@@ -482,7 +520,9 @@ export default function Dashboard() {
 
       console.debug("Loaded messages", res.data?.length, res.data);
 
-      setMessages(res.data.map((msg: any) => mapServerMessage(msg)));
+      const mappedMessages = res.data.map((msg: any) => mapServerMessage(msg));
+      setMessages(mappedMessages);
+      await markMessagesSeenInChannel(channelId, mappedMessages);
     } catch (error) {
       console.error("Failed to load messages", error);
     }
@@ -1050,6 +1090,8 @@ useEffect(() => {
               minute: "2-digit",
             }),
             content: newMessage.content,
+            status: newMessage.status || "sent",
+            senderId: newMessage.sender?._id || newMessage.sender?.id || "",
           },
         ]);
       } else {
@@ -1166,6 +1208,10 @@ useEffect(() => {
       applyMessageUpdate(deletedMessage);
     });
 
+    socketInstance.on("message-seen", (updatedMessage: any) => {
+      applyMessageUpdate(updatedMessage);
+    });
+
     socketInstance.on("new-channel", ({ workspaceId, channel }: any) => {
       if (!workspaceId || !channel) return;
       if (workspaceId?.toString() !== activeWSRef.current?.toString()) return;
@@ -1262,6 +1308,8 @@ useEffect(() => {
                 minute: "2-digit",
               }),
               content: newMessage.content,
+              status: newMessage.status || "sent",
+              senderId: newMessage.sender?._id || newMessage.sender?.id || "",
             },
           ];
         });
@@ -1711,6 +1759,11 @@ useEffect(() => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-white text-sm font-semibold">{msg.user}</span>
                       <span className="text-[#475569] text-xs">{msg.time}</span>
+                      {isOwnMessage && !msg.isDeleted && (
+                        <span className="text-[11px] font-medium text-[#86EFAC]">
+                          {msg.status === "seen" ? "✓✓ Seen" : "✓ Sent"}
+                        </span>
+                      )}
                       {msg.isEdited && <span className="text-[#475569] text-[11px]">(edited)</span>}
                     </div>
                   )}

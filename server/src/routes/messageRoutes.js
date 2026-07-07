@@ -1,9 +1,41 @@
 const express = require("express");
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
+const Channel = require("../models/Channel");
+const Workspace = require("../models/Workspace");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
+
+const ensureChannelMemberAccess = async (userId, channelId) => {
+  const channel = await Channel.findById(channelId);
+
+  if (!channel) {
+    const error = new Error("Channel not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const workspace = await Workspace.findById(channel.workspace);
+
+  if (!workspace) {
+    const error = new Error("Workspace not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const userIdString = userId.toString();
+  const isMember = workspace.members.some((memberId) => memberId.toString() === userIdString)
+    || workspace.owner.toString() === userIdString;
+
+  if (!isMember) {
+    const error = new Error("You do not have access to this channel.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return channel;
+};
 
 // Send Message
 router.post("/send", authMiddleware, async (req, res) => {
@@ -31,6 +63,57 @@ router.post("/send", authMiddleware, async (req, res) => {
     res.status(500).json({
       message: error.message,
     });
+  }
+});
+
+// Mark a channel message as seen by the current user
+router.patch('/:messageId/seen', authMiddleware, async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.messageId).populate('sender', 'name email');
+
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found.' });
+    }
+
+    if (message.isDeleted) {
+      return res.status(200).json({ success: true, message });
+    }
+
+    const senderId = message.sender?._id?.toString() || message.sender?.toString();
+    if (senderId === req.user.id) {
+      return res.status(200).json({ success: true, message });
+    }
+
+    const alreadySeen = message.seenBy.some((userId) => userId.toString() === req.user.id);
+    if (alreadySeen) {
+      return res.status(200).json({ success: true, message });
+    }
+
+    if (!message.channel) {
+      return res.status(400).json({ message: 'Seen receipts are only supported for channel messages.' });
+    }
+
+    await ensureChannelMemberAccess(req.user.id, message.channel);
+
+    const updatedMessage = await Message.findByIdAndUpdate(
+      message._id,
+      {
+        $addToSet: { seenBy: req.user.id },
+        $set: { status: 'seen', seenAt: new Date() },
+      },
+      { new: true }
+    ).populate('sender', 'name email');
+
+    const io = req.app.get('io');
+    io.to(`channel:${updatedMessage.channel.toString()}`).emit('message-seen', updatedMessage);
+
+    res.status(200).json({ success: true, message: updatedMessage });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+
+    res.status(500).json({ message: error.message });
   }
 });
 
