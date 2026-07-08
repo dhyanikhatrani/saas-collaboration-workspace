@@ -15,8 +15,8 @@ export function FeatureCard({ feature }: FeatureCardProps) {
   const Icon = feature.icon;
 
   return (
-    <div className="group p-6 rounded-2xl bg-[#1E293B] border border-[#6366F1]/10 hover:border-[#6366F1]/30 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-[#6366F1]/5 cursor-default">
-      <div className={`w-11 h-11 rounded-xl ${feature.bg} flex items-center justify-center mb-5`}>
+    <div className="group p-6 rounded-2xl bg-[#1E293B] border border-[#6366F1]/10 hover:border-[#6366F1]/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_25px_80px_rgba(99,102,241,0.12)] cursor-default">
+      <div className={`w-11 h-11 rounded-xl ${feature.bg} flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-105`}>
         <Icon size={20} className={feature.color} />
       </div>
       <h3 className="text-white font-semibold mb-2">{feature.title}</h3>
@@ -37,7 +37,7 @@ type TestimonialCardProps = {
 
 export function TestimonialCard({ testimonial }: TestimonialCardProps) {
   return (
-    <div className="p-5 rounded-2xl bg-[#1E293B] border border-[#6366F1]/10 hover:border-[#6366F1]/25 transition-all flex flex-col">
+    <div className="p-6 rounded-2xl bg-[#1E293B] border border-[#6366F1]/10 hover:border-[#6366F1]/25 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(15,23,42,0.35)] flex flex-col">
       <div className="flex gap-1 mb-4">
         {Array.from({ length: testimonial.stars }, (_, index) => (
           <Star key={index} size={13} className="fill-[#F59E0B] text-[#F59E0B]" />
@@ -70,7 +70,7 @@ type PricingCardProps = {
 
 export function PricingCard({ plan, onSelect }: PricingCardProps) {
   return (
-    <div className={`rounded-2xl p-7 border flex flex-col relative ${plan.primary ? "bg-gradient-to-b from-[#6366F1]/20 to-[#6366F1]/5 border-[#6366F1]/50 shadow-2xl shadow-[#6366F1]/10" : "bg-[#1E293B] border-[#6366F1]/10"}`}>
+    <div className={`rounded-2xl p-7 border flex flex-col relative transition-all duration-300 ${plan.primary ? "bg-gradient-to-b from-[#6366F1]/20 to-[#6366F1]/5 border-[#6366F1]/50 shadow-[0_20px_80px_rgba(99,102,241,0.16)]" : "bg-[#1E293B] border-[#6366F1]/10 hover:border-[#6366F1]/30 hover:-translate-y-1"}`}>
       {plan.primary && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#6366F1] text-white text-xs font-semibold px-4 py-1 rounded-full">Most popular</div>
       )}
@@ -92,7 +92,7 @@ export function PricingCard({ plan, onSelect }: PricingCardProps) {
       </ul>
       <button
         onClick={onSelect}
-        className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all ${plan.primary ? "bg-[#6366F1] hover:bg-[#5558E8] text-white hover:shadow-lg hover:shadow-[#6366F1]/30" : "border border-[#6366F1]/25 text-[#94A3B8] hover:text-white hover:border-[#6366F1]/50"}`}
+        className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${plan.primary ? "bg-[#6366F1] hover:bg-[#5558E8] text-white hover:shadow-lg hover:shadow-[#6366F1]/30" : "border border-[#6366F1]/25 text-[#94A3B8] hover:text-white hover:border-[#6366F1]/50"}`}
       >
         {plan.cta}
       </button>

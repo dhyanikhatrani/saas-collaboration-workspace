@@ -1,21 +1,31 @@
 import {
-  BarChart3,
-  FileText,
-  Globe,
+  Bell,
+  Building2,
+  Eye,
   MessageSquare,
-  Puzzle,
-  Shield,
+  Paperclip,
+  ShieldCheck,
+  Type,
+  UserPlus,
 } from "lucide-react";
 
-export const NAV_LINKS = ["Features", "Pricing", "Enterprise", "Blog", "Changelog"];
+export const NAV_LINKS = [
+  { label: "Features", target: "features" },
+  { label: "Collaboration", target: "collaboration" },
+  { label: "Testimonials", target: "testimonials" },
+  { label: "Pricing", target: "pricing" },
+];
 
 export const FEATURES = [
-  { icon: MessageSquare, title: "Real-time Messaging", desc: "Instant channels, threads, and DMs with 99.99% uptime SLA. Search across your entire history in milliseconds.", color: "text-[#6366F1]", bg: "bg-[#6366F1]/10" },
-  { icon: FileText, title: "Document Collaboration", desc: "Notion-style docs embedded directly in your workspace. Co-edit with your team in real time, no tab switching.", color: "text-[#8B5CF6]", bg: "bg-[#8B5CF6]/10" },
-  { icon: BarChart3, title: "Analytics & Insights", desc: "Understand team engagement, channel activity, and productivity trends with beautiful dashboards.", color: "text-[#06B6D4]", bg: "bg-[#06B6D4]/10" },
-  { icon: Puzzle, title: "500+ Integrations", desc: "Connect GitHub, Jira, Figma, Notion, Salesforce and every tool your team already loves.", color: "text-[#10B981]", bg: "bg-[#10B981]/10" },
-  { icon: Shield, title: "Enterprise Security", desc: "SOC 2 Type II, GDPR, SSO, SCIM provisioning, and audit logs. Security that enterprises trust.", color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/10" },
-  { icon: Globe, title: "Global Infrastructure", desc: "Deployed across 18 regions worldwide with end-to-end encryption and data residency controls.", color: "text-[#EF4444]", bg: "bg-[#EF4444]/10" },
+  { icon: ShieldCheck, title: "Secure JWT Authentication", desc: "Protect every workspace with reliable sign-in, token-based sessions, and secure access controls.", color: "text-[#6366F1]", bg: "bg-[#6366F1]/10" },
+  { icon: Building2, title: "Workspace Management", desc: "Create, organize, and switch between spaces effortlessly for every product or team initiative.", color: "text-[#8B5CF6]", bg: "bg-[#8B5CF6]/10" },
+  { icon: MessageSquare, title: "Channel Collaboration", desc: "Keep conversations grouped by project, function, or launch stage so context stays in one place.", color: "text-[#06B6D4]", bg: "bg-[#06B6D4]/10" },
+  { icon: UserPlus, title: "Member Invitations", desc: "Invite teammates quickly and keep new collaborators aligned from day one with shared workspace access.", color: "text-[#10B981]", bg: "bg-[#10B981]/10" },
+  { icon: MessageSquare, title: "Real-time Messaging", desc: "Send instant messages and stay close to the pulse of work across channels, direct conversations, and threads.", color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/10" },
+  { icon: Type, title: "Typing Indicator", desc: "Show active collaboration with live typing cues so conversations feel natural and responsive.", color: "text-[#EC4899]", bg: "bg-[#EC4899]/10" },
+  { icon: Eye, title: "Read Receipts", desc: "Understand when updates are seen and keep momentum moving with clear delivery signals.", color: "text-[#14B8A6]", bg: "bg-[#14B8A6]/10" },
+  { icon: Bell, title: "Smart Notifications", desc: "Stay informed with adaptive alerts for mentions, mentions, and important team activity.", color: "text-[#F97316]", bg: "bg-[#F97316]/10" },
+  { icon: Paperclip, title: "File Sharing", desc: "Upload and exchange documents or assets without leaving the workspace, keeping work moving.", color: "text-[#EF4444]", bg: "bg-[#EF4444]/10" },
 ];
 
 export const TESTIMONIALS = [

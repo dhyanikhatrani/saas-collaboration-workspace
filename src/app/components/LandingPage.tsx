@@ -1,9 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
-  Zap, FileText,
-  ChevronRight, Star, ArrowRight, Check, Menu, X,
-  Layers, Sparkles
+  ArrowRight,
+  Bell,
+  Building2,
+  Check,
+  ChevronRight,
+  Layers,
+  Menu,
+  MessageSquare,
+  Paperclip,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Type,
+  UserPlus,
+  X,
+  Zap,
 } from "lucide-react";
 import { FeatureCard, PricingCard, TestimonialCard } from "./landing/LandingCards";
 import {
@@ -13,14 +26,19 @@ import {
   PLANS as LANDING_PLANS,
   TESTIMONIALS as LANDING_TESTIMONIALS,
 } from "./landing/data";
+import previewScreenshot from "../../imports/dashboard-preview.png";
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const scrollToSection = (target: string) => {
+    document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#0F172A] text-[#F8FAFC] overflow-x-hidden">
-      {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#6366F1]/10 bg-[#0F172A]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
@@ -31,14 +49,16 @@ export default function LandingPage() {
           </div>
 
           <div className="hidden md:flex items-center gap-8">
-            {LANDING_NAV_LINKS.map(l => (
-              <button key={l} className="text-[#94A3B8] hover:text-white transition-colors text-sm">{l}</button>
+            {LANDING_NAV_LINKS.map(link => (
+              <button key={link.target} onClick={() => scrollToSection(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm">
+                {link.label}
+              </button>
             ))}
           </div>
 
           <div className="hidden md:flex items-center gap-3">
             <button onClick={() => navigate("/login")} className="text-sm text-[#94A3B8] hover:text-white transition-colors px-4 py-2">Log in</button>
-            <button onClick={() => navigate("/register")} className="text-sm bg-[#6366F1] hover:bg-[#5558E8] text-white px-4 py-2 rounded-lg transition-all hover:shadow-lg hover:shadow-[#6366F1]/25 font-medium">
+            <button onClick={() => navigate("/register")} className="text-sm bg-[#6366F1] hover:bg-[#5558E8] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#6366F1]/25 font-medium">
               Get started
             </button>
           </div>
@@ -50,8 +70,10 @@ export default function LandingPage() {
 
         {mobileOpen && (
           <div className="md:hidden bg-[#0F172A] border-t border-[#6366F1]/10 px-6 py-4 flex flex-col gap-4">
-            {LANDING_NAV_LINKS.map(l => (
-              <button key={l} className="text-[#94A3B8] hover:text-white transition-colors text-sm text-left">{l}</button>
+            {LANDING_NAV_LINKS.map(link => (
+              <button key={link.target} onClick={() => scrollToSection(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm text-left">
+                {link.label}
+              </button>
             ))}
             <div className="flex gap-3 pt-2">
               <button onClick={() => navigate("/login")} className="flex-1 text-sm border border-[#6366F1]/30 text-[#94A3B8] px-4 py-2 rounded-lg">Log in</button>
@@ -61,7 +83,7 @@ export default function LandingPage() {
         )}
       </nav>
 
-      {/* Hero */}
+{/* Hero */}
       <section className="pt-32 pb-24 px-6 relative overflow-hidden">
         {/* Background glows */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#6366F1]/10 rounded-full blur-[120px] pointer-events-none" />
@@ -76,7 +98,8 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold leading-tight tracking-tight text-white mb-6">
-            Where teams do their{" "}
+            Where teams do their {" "}
+            <br />
             <span className="bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#06B6D4] bg-clip-text text-transparent">
               best work
             </span>
@@ -200,7 +223,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Trusted by logos */}
       <section className="py-16 px-6 border-y border-[#6366F1]/10">
         <div className="max-w-5xl mx-auto text-center">
           <p className="text-sm text-[#475569] uppercase tracking-widest mb-10">Trusted by teams at world-class companies</p>
@@ -212,19 +234,18 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-28 px-6">
+      <section id="features" className="py-28 px-6 scroll-mt-24">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-20">
+          <div className="text-center mb-20 animate-fade-up">
             <div className="inline-flex items-center gap-2 bg-[#6366F1]/10 border border-[#6366F1]/20 rounded-full px-4 py-1.5 mb-6">
               <Layers size={13} className="text-[#6366F1]" />
               <span className="text-xs text-[#6366F1] font-medium">Built for modern teams</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-5 tracking-tight">Everything your team needs,<br />finally in one place</h2>
-            <p className="text-[#94A3B8] text-lg max-w-xl mx-auto">No more context switching. WorkSync brings messages, docs, and tasks into a unified workspace.</p>
+            <h2 className="text-4xl md:text-5xl font-semibold text-white mb-5 tracking-tight">Everything your team needs,<br />finally in one place</h2>
+            <p className="text-[#94A3B8] text-lg max-w-2xl mx-auto">From secure access to real-time collaboration, WorkSync keeps your team connected without the noise.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {LANDING_FEATURES.map(f => (
               <FeatureCard key={f.title} feature={f} />
             ))}
@@ -232,61 +253,72 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Product showcase */}
-      <section className="py-24 px-6 bg-[#0B1120]">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 bg-[#06B6D4]/10 border border-[#06B6D4]/20 rounded-full px-4 py-1.5 mb-6">
-                <FileText size={13} className="text-[#06B6D4]" />
-                <span className="text-xs text-[#06B6D4] font-medium">Document Collaboration</span>
-              </div>
-              <h2 className="text-4xl font-bold text-white mb-5 leading-tight tracking-tight">Docs that live<br />where work happens</h2>
-              <p className="text-[#94A3B8] leading-relaxed mb-8">Create, edit, and share rich documents without leaving your workspace. Real-time co-editing, inline comments, and version history — all woven into your channels.</p>
-              <ul className="space-y-3">
-                {["Block-based editor with 30+ content types", "Real-time multi-cursor collaboration", "AI writing assistant built-in", "Embed charts, tables, and code blocks"].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-sm text-[#94A3B8]">
-                    <div className="w-5 h-5 rounded-full bg-[#06B6D4]/15 flex items-center justify-center flex-shrink-0">
-                      <Check size={11} className="text-[#06B6D4]" />
-                    </div>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={() => navigate("/documents")} className="mt-8 flex items-center gap-2 text-[#06B6D4] text-sm font-medium hover:gap-3 transition-all">
-                Explore docs <ArrowRight size={15} />
-              </button>
+      <section id="collaboration" className="py-24 px-6 bg-[#0B1120] scroll-mt-24">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.05fr_0.95fr] gap-16 items-center">
+          <div className="animate-fade-up">
+            <div className="inline-flex items-center gap-2 bg-[#06B6D4]/10 border border-[#06B6D4]/20 rounded-full px-4 py-1.5 mb-6">
+              <MessageSquare size={13} className="text-[#06B6D4]" />
+              <span className="text-xs text-[#06B6D4] font-medium">Workspace collaboration</span>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-[#06B6D4]/15 bg-[#1E293B] p-5 shadow-2xl shadow-[#06B6D4]/5">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-[#06B6D4]/15 flex items-center justify-center"><FileText size={15} className="text-[#06B6D4]" /></div>
-                  <div>
-                    <div className="text-white text-sm font-medium">Q3 Product Roadmap</div>
-                    <div className="text-[#475569] text-xs">Last edited 2 minutes ago</div>
-                  </div>
-                  <div className="ml-auto flex -space-x-1">
-                    {["SC", "MR", "EV"].map((a, i) => (
-                      <div key={i} className={`w-6 h-6 rounded-full border-2 border-[#1E293B] flex items-center justify-center bg-gradient-to-br ${i === 0 ? 'from-[#6366F1] to-[#8B5CF6]' : i === 1 ? 'from-[#06B6D4] to-[#6366F1]' : 'from-[#8B5CF6] to-[#EC4899]'}`}>
-                        <span className="text-white text-xs font-bold" style={{fontSize: '8px'}}>{a}</span>
-                      </div>
-                    ))}
-                  </div>
+            <h2 className="text-4xl font-semibold text-white mb-5 leading-tight tracking-tight">Create spaces, invite people,<br />and move work forward together</h2>
+            <p className="text-[#94A3B8] leading-relaxed mb-8">WorkSync brings your team into one collaborative flow — from workspace creation to real-time updates — so projects stay organized and momentum never stalls.</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[
+                { title: "Create Workspaces", desc: "Spin up focused spaces for every initiative." },
+                { title: "Invite Members", desc: "Bring in the right people in seconds." },
+                { title: "Create Channels", desc: "Structure conversations by team or project." },
+                { title: "Real-time Collaboration", desc: "Share updates and stay aligned instantly." },
+              ].map(item => (
+                <div key={item.title} className="rounded-2xl border border-[#6366F1]/10 bg-[#111827]/70 p-4">
+                  <div className="text-white font-medium text-sm mb-1">{item.title}</div>
+                  <div className="text-[#94A3B8] text-sm">{item.desc}</div>
                 </div>
-                {/* Doc content preview */}
-                <div className="bg-[#0F172A] rounded-xl p-4 space-y-2">
-                  <div className="h-4 bg-white/10 rounded w-3/4" />
-                  <div className="h-3 bg-white/5 rounded w-full" />
-                  <div className="h-3 bg-white/5 rounded w-5/6" />
-                  <div className="h-3 bg-white/5 rounded w-4/6" />
-                  <div className="mt-4 h-4 bg-white/10 rounded w-1/2" />
-                  <div className="h-3 bg-white/5 rounded w-full" />
-                  <div className="h-3 bg-white/5 rounded w-3/4" />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-[#06B6D4]/20 bg-[#111827]/80 p-5 shadow-[0_25px_90px_rgba(6,182,212,0.16)]">
+            <div className="rounded-[22px] border border-white/10 bg-[#0F172A] p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-white font-medium">Product Launch</div>
+                  <div className="text-[#475569] text-xs">3 active channels • 8 members</div>
                 </div>
-                <div className="flex gap-2 mt-3">
-                  <div className="bg-[#6366F1]/15 text-[#6366F1] text-xs rounded px-2 py-1">In Progress</div>
-                  <div className="bg-[#10B981]/15 text-[#10B981] text-xs rounded px-2 py-1">Q3 2026</div>
-                  <div className="bg-[#F59E0B]/15 text-[#F59E0B] text-xs rounded px-2 py-1">Engineering</div>
+                <div className="rounded-full bg-[#10B981]/15 px-3 py-1 text-[#10B981] text-xs font-medium">Live</div>
+              </div>
+
+              <div className="rounded-2xl border border-[#6366F1]/15 bg-[#1E293B]/80 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-[#94A3B8] text-sm">
+                  <Building2 size={15} className="text-[#6366F1]" />
+                  Workspace overview
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-4/5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#06B6D4]" /></div>
+                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-3/4 rounded-full bg-white/15" /></div>
+                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-2/3 rounded-full bg-white/10" /></div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-[#6366F1]/10 bg-[#1E293B]/70 p-4">
+                  <div className="flex items-center gap-2 text-white text-sm font-medium mb-2"><UserPlus size={14} className="text-[#10B981]" /> Invites</div>
+                  <div className="text-[#94A3B8] text-sm">2 pending invites waiting to join.</div>
+                </div>
+                <div className="rounded-2xl border border-[#6366F1]/10 bg-[#1E293B]/70 p-4">
+                  <div className="flex items-center gap-2 text-white text-sm font-medium mb-2"><Bell size={14} className="text-[#F59E0B]" /> Alerts</div>
+                  <div className="text-[#94A3B8] text-sm">Mentions and file updates are live.</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#6366F1]/10 bg-[#111827] p-4">
+                <div className="flex items-center gap-2 text-[#94A3B8] text-sm mb-3">
+                  <Paperclip size={15} className="text-[#06B6D4]" />
+                  Shared assets
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {['Roadmap', 'Brief', 'Mockups'].map(item => (
+                    <span key={item} className="rounded-full bg-[#1E293B] border border-[#6366F1]/10 px-3 py-1 text-xs text-[#CBD5E1]">{item}</span>
+                  ))}
                 </div>
               </div>
             </div>
@@ -294,26 +326,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-28 px-6">
+      {/* <section id="testimonials" className="py-28 px-6 scroll-mt-24">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">Loved by teams worldwide</h2>
-            <p className="text-[#94A3B8]">Don't take our word for it — hear from the teams shipping with WorkSync.</p>
+          <div className="text-center mb-16 animate-fade-up">
+            <h2 className="text-4xl font-semibold text-white mb-4 tracking-tight">Loved by teams worldwide</h2>
+            <p className="text-[#94A3B8] max-w-2xl mx-auto">Teams use WorkSync to keep every conversation, channel, and decision connected in one place.</p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
             {LANDING_TESTIMONIALS.map(t => (
               <TestimonialCard key={t.name} testimonial={t} />
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
-      {/* Pricing */}
-      <section className="py-24 px-6 bg-[#0B1120]">
+      {/* <section id="pricing" className="py-24 px-6 bg-[#0B1120] scroll-mt-24">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">Simple, transparent pricing</h2>
+          <div className="text-center mb-16 animate-fade-up">
+            <h2 className="text-4xl font-semibold text-white mb-4 tracking-tight">Simple, transparent pricing</h2>
             <p className="text-[#94A3B8]">Start free, scale as you grow. No hidden fees, no surprises.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
@@ -326,9 +356,9 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
-      {/* CTA */}
+{/* CTA */}
       <section className="py-28 px-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#6366F1]/5 to-transparent pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative z-10">
@@ -342,7 +372,6 @@ export default function LandingPage() {
               Get started for free
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
-            <p className="text-[#475569] text-sm">No credit card · Free forever plan</p>
           </div>
         </div>
       </section>
