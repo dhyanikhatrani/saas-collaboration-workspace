@@ -1,19 +1,16 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
   ArrowRight,
   Clock3,
   Mail,
   MapPin,
-  Menu,
   MessageCircleMore,
   Phone,
   ShieldCheck,
   Sparkles,
-  X,
   Zap,
 } from "lucide-react";
-import BrandLogo from "./shared/BrandLogo";
+import PageNav from "./shared/PageNav";
 
 const contactCards = [
   { icon: Mail, title: "Email", value: "hello@worksync.io", detail: "For product questions and partnerships" },
@@ -38,80 +35,17 @@ const faqs = [
 
 export default function ContactPage() {
   const navigate = useNavigate();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const links = [
-    { label: "Features", target: "/", scrollTo: "features" },
-    { label: "Collaboration", target: "/", scrollTo: "collaboration" },
-    { label: "About", target: "/about" },
-    { label: "Contact", target: "/contact" },
+    { label: "About", href: "/about" },
+    { label: "Collaboration", href: "/collaboration" },
+    { label: "Features", href: "/features" },
+    { label: "Contact", href: "/contact" },
   ];
-
-  const handleNav = (target: string, scrollTo?: string) => {
-    if (target === "/") {
-      navigate(target, { state: scrollTo ? { scrollTo } : undefined });
-    } else {
-      navigate(target);
-    }
-    setMobileOpen(false);
-  };
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-[#F8FAFC] overflow-x-hidden">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#6366F1]/10 bg-[#0F172A]/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div onClick={() => navigate("/")} className="cursor-pointer">
-            <BrandLogo compact />
-          </div>
-
-          <div className="hidden md:flex items-center gap-8">
-            {links.map((link) => (
-              <button
-                key={link.label}
-                onClick={() => handleNav(link.target, link.scrollTo)}
-                className="text-sm text-[#94A3B8] hover:text-white transition-colors"
-              >
-                {link.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="hidden md:flex items-center gap-3">
-            <button onClick={() => navigate("/login")} className="text-sm text-[#94A3B8] hover:text-white transition-colors px-4 py-2">
-              Log In
-            </button>
-            <button onClick={() => navigate("/register")} className="text-sm bg-[#6366F1] hover:bg-[#5558E8] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#6366F1]/25 font-medium">
-              Get Started
-            </button>
-          </div>
-
-          <button className="md:hidden text-[#94A3B8]" onClick={() => setMobileOpen((open) => !open)}>
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-
-        {mobileOpen && (
-          <div className="md:hidden bg-[#0F172A] border-t border-[#6366F1]/10 px-6 py-4 flex flex-col gap-4">
-            {links.map((link) => (
-              <button
-                key={link.label}
-                onClick={() => handleNav(link.target, link.scrollTo)}
-                className="text-[#94A3B8] hover:text-white transition-colors text-sm text-left"
-              >
-                {link.label}
-              </button>
-            ))}
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => navigate("/login")} className="flex-1 text-sm border border-[#6366F1]/30 text-[#94A3B8] px-4 py-2 rounded-lg">
-                Log In
-              </button>
-              <button onClick={() => navigate("/register")} className="flex-1 text-sm bg-[#6366F1] text-white px-4 py-2 rounded-lg font-medium">
-                Get Started
-              </button>
-            </div>
-          </div>
-        )}
-      </nav>
+      <PageNav links={links} />
 
       <main className="pt-28 pb-20 px-6">
         <section className="max-w-6xl mx-auto relative overflow-hidden rounded-[32px] border border-[#6366F1]/15 bg-[#111827]/80 p-8 md:p-12 shadow-[0_25px_90px_rgba(99,102,241,0.12)]">

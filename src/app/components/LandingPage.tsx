@@ -1,60 +1,25 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   ArrowRight,
-  Bell,
-  Building2,
-  Check,
   ChevronRight,
-  Layers,
   Menu,
-  MessageSquare,
-  Paperclip,
-  ShieldCheck,
   Sparkles,
   Star,
-  Type,
-  UserPlus,
   X,
   Zap,
 } from "lucide-react";
-import { FeatureCard, PricingCard, TestimonialCard } from "./landing/LandingCards";
 import {
-  FEATURES as LANDING_FEATURES,
-  LOGOS as LANDING_LOGOS,
   NAV_LINKS as LANDING_NAV_LINKS,
-  PLANS as LANDING_PLANS,
-  TESTIMONIALS as LANDING_TESTIMONIALS,
 } from "./landing/data";
 import previewScreenshot from "../../imports/dashboard-preview.png";
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    const scrollTarget = (location.state as { scrollTo?: string } | null)?.scrollTo;
-    if (scrollTarget) {
-      requestAnimationFrame(() => {
-        document.getElementById(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
-  }, [location.pathname, location.state]);
-
   const handleNav = (target: string) => {
-    if (target === "about" || target === "contact") {
-      navigate(`/${target}`);
-      setMobileOpen(false);
-      return;
-    }
-
-    if (location.pathname !== "/") {
-      navigate("/", { state: { scrollTo: target } });
-      return;
-    }
-
-    document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    navigate(`/${target}`);
     setMobileOpen(false);
   };
 
@@ -243,141 +208,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      <section className="py-16 px-6 border-y border-[#6366F1]/10">
-        <div className="max-w-5xl mx-auto text-center">
-          <p className="text-sm text-[#475569] uppercase tracking-widest mb-10">Trusted by teams at world-class companies</p>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
-            {LANDING_LOGOS.map(logo => (
-              <span key={logo} className="text-[#475569] hover:text-[#94A3B8] transition-colors font-semibold tracking-tight text-lg cursor-default">{logo}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="py-28 px-6 scroll-mt-24">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-20 animate-fade-up">
-            <div className="inline-flex items-center gap-2 bg-[#6366F1]/10 border border-[#6366F1]/20 rounded-full px-4 py-1.5 mb-6">
-              <Layers size={13} className="text-[#6366F1]" />
-              <span className="text-xs text-[#6366F1] font-medium">Built for modern teams</span>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-semibold text-white mb-5 tracking-tight">Everything your team needs,<br />finally in one place</h2>
-            <p className="text-[#94A3B8] text-lg max-w-2xl mx-auto">From secure access to real-time collaboration, WorkSync keeps your team connected without the noise.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {LANDING_FEATURES.map(f => (
-              <FeatureCard key={f.title} feature={f} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="collaboration" className="py-24 px-6 bg-[#0B1120] scroll-mt-24">
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.05fr_0.95fr] gap-16 items-center">
-          <div className="animate-fade-up">
-            <div className="inline-flex items-center gap-2 bg-[#06B6D4]/10 border border-[#06B6D4]/20 rounded-full px-4 py-1.5 mb-6">
-              <MessageSquare size={13} className="text-[#06B6D4]" />
-              <span className="text-xs text-[#06B6D4] font-medium">Workspace collaboration</span>
-            </div>
-            <h2 className="text-4xl font-semibold text-white mb-5 leading-tight tracking-tight">Create spaces, invite people,<br />and move work forward together</h2>
-            <p className="text-[#94A3B8] leading-relaxed mb-8">WorkSync brings your team into one collaborative flow — from workspace creation to real-time updates — so projects stay organized and momentum never stalls.</p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {[
-                { title: "Create Workspaces", desc: "Spin up focused spaces for every initiative." },
-                { title: "Invite Members", desc: "Bring in the right people in seconds." },
-                { title: "Create Channels", desc: "Structure conversations by team or project." },
-                { title: "Real-time Collaboration", desc: "Share updates and stay aligned instantly." },
-              ].map(item => (
-                <div key={item.title} className="rounded-2xl border border-[#6366F1]/10 bg-[#111827]/70 p-4">
-                  <div className="text-white font-medium text-sm mb-1">{item.title}</div>
-                  <div className="text-[#94A3B8] text-sm">{item.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-[#06B6D4]/20 bg-[#111827]/80 p-5 shadow-[0_25px_90px_rgba(6,182,212,0.16)]">
-            <div className="rounded-[22px] border border-white/10 bg-[#0F172A] p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-white font-medium">Product Launch</div>
-                  <div className="text-[#475569] text-xs">3 active channels • 8 members</div>
-                </div>
-                <div className="rounded-full bg-[#10B981]/15 px-3 py-1 text-[#10B981] text-xs font-medium">Live</div>
-              </div>
-
-              <div className="rounded-2xl border border-[#6366F1]/15 bg-[#1E293B]/80 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-[#94A3B8] text-sm">
-                  <Building2 size={15} className="text-[#6366F1]" />
-                  Workspace overview
-                </div>
-                <div className="space-y-2">
-                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-4/5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#06B6D4]" /></div>
-                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-3/4 rounded-full bg-white/15" /></div>
-                  <div className="h-2.5 rounded-full bg-white/10"><div className="h-2.5 w-2/3 rounded-full bg-white/10" /></div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[#6366F1]/10 bg-[#1E293B]/70 p-4">
-                  <div className="flex items-center gap-2 text-white text-sm font-medium mb-2"><UserPlus size={14} className="text-[#10B981]" /> Invites</div>
-                  <div className="text-[#94A3B8] text-sm">2 pending invites waiting to join.</div>
-                </div>
-                <div className="rounded-2xl border border-[#6366F1]/10 bg-[#1E293B]/70 p-4">
-                  <div className="flex items-center gap-2 text-white text-sm font-medium mb-2"><Bell size={14} className="text-[#F59E0B]" /> Alerts</div>
-                  <div className="text-[#94A3B8] text-sm">Mentions and file updates are live.</div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-[#6366F1]/10 bg-[#111827] p-4">
-                <div className="flex items-center gap-2 text-[#94A3B8] text-sm mb-3">
-                  <Paperclip size={15} className="text-[#06B6D4]" />
-                  Shared assets
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {['Roadmap', 'Brief', 'Mockups'].map(item => (
-                    <span key={item} className="rounded-full bg-[#1E293B] border border-[#6366F1]/10 px-3 py-1 text-xs text-[#CBD5E1]">{item}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* <section id="testimonials" className="py-28 px-6 scroll-mt-24">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16 animate-fade-up">
-            <h2 className="text-4xl font-semibold text-white mb-4 tracking-tight">Loved by teams worldwide</h2>
-            <p className="text-[#94A3B8] max-w-2xl mx-auto">Teams use WorkSync to keep every conversation, channel, and decision connected in one place.</p>
-          </div>
-          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
-            {LANDING_TESTIMONIALS.map(t => (
-              <TestimonialCard key={t.name} testimonial={t} />
-            ))}
-          </div>
-        </div>
-      </section> */}
-
-      {/* <section id="pricing" className="py-24 px-6 bg-[#0B1120] scroll-mt-24">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16 animate-fade-up">
-            <h2 className="text-4xl font-semibold text-white mb-4 tracking-tight">Simple, transparent pricing</h2>
-            <p className="text-[#94A3B8]">Start free, scale as you grow. No hidden fees, no surprises.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {LANDING_PLANS.map(plan => (
-              <PricingCard
-                key={plan.name}
-                plan={plan}
-                onSelect={() => navigate(plan.name === "Enterprise" ? "/" : "/register")}
-              />
-            ))}
-          </div>
-        </div>
-      </section> */}
 
 {/* CTA */}
       <section className="py-28 px-6 relative overflow-hidden">
