@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import {
   ArrowRight,
   Bell,
@@ -30,9 +30,30 @@ import previewScreenshot from "../../imports/dashboard-preview.png";
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const scrollToSection = (target: string) => {
+  useEffect(() => {
+    const scrollTarget = (location.state as { scrollTo?: string } | null)?.scrollTo;
+    if (scrollTarget) {
+      requestAnimationFrame(() => {
+        document.getElementById(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [location.pathname, location.state]);
+
+  const handleNav = (target: string) => {
+    if (target === "about" || target === "contact") {
+      navigate(`/${target}`);
+      setMobileOpen(false);
+      return;
+    }
+
+    if (location.pathname !== "/") {
+      navigate("/", { state: { scrollTo: target } });
+      return;
+    }
+
     document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
     setMobileOpen(false);
   };
@@ -50,16 +71,16 @@ export default function LandingPage() {
 
           <div className="hidden md:flex items-center gap-8">
             {LANDING_NAV_LINKS.map(link => (
-              <button key={link.target} onClick={() => scrollToSection(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm">
+              <button key={link.target} onClick={() => handleNav(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm">
                 {link.label}
               </button>
             ))}
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={() => navigate("/login")} className="text-sm text-[#94A3B8] hover:text-white transition-colors px-4 py-2">Log in</button>
+            <button onClick={() => navigate("/login")} className="text-sm text-[#94A3B8] hover:text-white transition-colors px-4 py-2">Log In</button>
             <button onClick={() => navigate("/register")} className="text-sm bg-[#6366F1] hover:bg-[#5558E8] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-[#6366F1]/25 font-medium">
-              Get started
+              Get Started
             </button>
           </div>
 
@@ -71,13 +92,13 @@ export default function LandingPage() {
         {mobileOpen && (
           <div className="md:hidden bg-[#0F172A] border-t border-[#6366F1]/10 px-6 py-4 flex flex-col gap-4">
             {LANDING_NAV_LINKS.map(link => (
-              <button key={link.target} onClick={() => scrollToSection(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm text-left">
+              <button key={link.target} onClick={() => handleNav(link.target)} className="text-[#94A3B8] hover:text-white transition-colors text-sm text-left">
                 {link.label}
               </button>
             ))}
             <div className="flex gap-3 pt-2">
-              <button onClick={() => navigate("/login")} className="flex-1 text-sm border border-[#6366F1]/30 text-[#94A3B8] px-4 py-2 rounded-lg">Log in</button>
-              <button onClick={() => navigate("/register")} className="flex-1 text-sm bg-[#6366F1] text-white px-4 py-2 rounded-lg font-medium">Get started</button>
+              <button onClick={() => navigate("/login")} className="flex-1 text-sm border border-[#6366F1]/30 text-[#94A3B8] px-4 py-2 rounded-lg">Log In</button>
+              <button onClick={() => navigate("/register")} className="flex-1 text-sm bg-[#6366F1] text-white px-4 py-2 rounded-lg font-medium">Get Started</button>
             </div>
           </div>
         )}

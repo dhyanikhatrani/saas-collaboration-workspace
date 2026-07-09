@@ -1,6 +1,8 @@
 /* MARKER-MAKE-KIT-INVOKED */
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import LandingPage from "./components/LandingPage";
+import AboutPage from "./components/AboutPage";
+import ContactPage from "./components/ContactPage";
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
 import Dashboard from "./components/Dashboard";
@@ -12,6 +14,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<Dashboard />} />

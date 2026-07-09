@@ -12,8 +12,8 @@ import {
 export const NAV_LINKS = [
   { label: "Features", target: "features" },
   { label: "Collaboration", target: "collaboration" },
-  { label: "Testimonials", target: "testimonials" },
-  { label: "Pricing", target: "pricing" },
+  { label: "About", target: "about" },
+  { label: "Contact", target: "contact" },
 ];
 
 export const FEATURES = [
