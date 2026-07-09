@@ -14,6 +14,7 @@ const userRoutes = require("./routes/userRoutes");
 const conversationRoutes = require("./routes/conversationRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 
 
 const connectDB = require("./config/db");
@@ -51,6 +52,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/contact", contactRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server Running 🚀");

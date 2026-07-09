@@ -128,24 +128,6 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="max-w-6xl mx-auto mt-20">
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 bg-[#6366F1]/10 border border-[#6366F1]/20 rounded-full px-4 py-1.5 mb-4">
-              <Cpu size={14} className="text-[#6366F1]" />
-              <span className="text-xs font-medium uppercase tracking-[0.25em] text-[#6366F1]">Technology stack</span>
-            </div>
-            <h2 className="text-3xl font-semibold text-white">Crafted with modern tools and dependable foundations.</h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {stack.map((item) => (
-              <div key={item.name} className="rounded-[24px] border border-[#6366F1]/10 bg-[#111827]/80 p-6">
-                <h3 className="text-lg font-semibold text-white mb-2">{item.name}</h3>
-                <p className="text-[#94A3B8] leading-relaxed">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="max-w-6xl mx-auto mt-20 rounded-[32px] border border-[#06B6D4]/15 bg-gradient-to-br from-[#111827] to-[#0F172A] p-8 md:p-10">
           <div className="max-w-3xl">

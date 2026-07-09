@@ -1,3 +1,4 @@
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import {
   ArrowRight,
@@ -10,6 +11,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import { Toaster, toast } from "sonner";
 import PageNav from "./shared/PageNav";
 
 const contactCards = [
@@ -35,6 +37,15 @@ const faqs = [
 
 export default function ContactPage() {
   const navigate = useNavigate();
+  const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
+  });
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const links = [
     { label: "About", href: "/about" },
@@ -42,6 +53,60 @@ export default function ContactPage() {
     { label: "Features", href: "/features" },
     { label: "Contact", href: "/contact" },
   ];
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    const nextErrors: { [key: string]: string } = {};
+    Object.entries(formData).forEach(([key, value]) => {
+      if (!value.trim()) {
+        nextErrors[key] = "This field is required.";
+      }
+    });
+
+    if (!formData.email.trim()) {
+      nextErrors.email = "This field is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      nextErrors.email = "Please enter a valid email address.";
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/contact`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to submit contact form.");
+      }
+
+      toast.success("Thank you! Your message has been submitted successfully.");
+      setFormData({ name: "", email: "", subject: "", message: "" });
+      setErrors({});
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Something went wrong.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-[#F8FAFC] overflow-x-hidden">
@@ -94,28 +159,62 @@ export default function ContactPage() {
               <MessageCircleMore size={14} className="text-[#06B6D4]" />
               <span className="text-xs font-medium uppercase tracking-[0.25em] text-[#06B6D4]">Send a message</span>
             </div>
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#94A3B8] block mb-2">Full Name</label>
-                  <input className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]" placeholder="Alex Morgan" />
+                  <input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]"
+                    placeholder="Alex Morgan"
+                  />
+                  {errors.name ? <p className="mt-2 text-sm text-[#F87171]">{errors.name}</p> : null}
                 </div>
                 <div>
                   <label className="text-sm text-[#94A3B8] block mb-2">Email</label>
-                  <input type="email" className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]" placeholder="alex@company.com" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]"
+                    placeholder="alex@company.com"
+                  />
+                  {errors.email ? <p className="mt-2 text-sm text-[#F87171]">{errors.email}</p> : null}
                 </div>
               </div>
               <div>
                 <label className="text-sm text-[#94A3B8] block mb-2">Subject</label>
-                <input className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]" placeholder="Demo request" />
+                <input
+                  name="subject"
+                  value={formData.subject}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]"
+                  placeholder="Demo request"
+                />
+                {errors.subject ? <p className="mt-2 text-sm text-[#F87171]">{errors.subject}</p> : null}
               </div>
               <div>
                 <label className="text-sm text-[#94A3B8] block mb-2">Message</label>
-                <textarea rows={6} className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]" placeholder="Tell us about your team and what you want to build." />
+                <textarea
+                  rows={6}
+                  name="message"
+                  value={formData.message}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-[#6366F1]/15 bg-[#0F172A] px-4 py-3 text-white outline-none focus:border-[#6366F1]"
+                  placeholder="Tell us about your team and what you want to build."
+                />
+                {errors.message ? <p className="mt-2 text-sm text-[#F87171]">{errors.message}</p> : null}
               </div>
-              <button className="group flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] text-white px-6 py-3 rounded-xl font-medium transition-all hover:-translate-y-0.5">
-                Send Message
-                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="group flex items-center gap-2 bg-[#6366F1] hover:bg-[#5558E8] text-white px-6 py-3 rounded-xl font-medium transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Sending..." : "Send Message"}
+                {!isSubmitting ? <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /> : null}
               </button>
             </form>
           </div>
@@ -152,6 +251,8 @@ export default function ContactPage() {
           </div>
         </section>
       </main>
+
+      <Toaster richColors closeButton position="top-right" />
 
       <footer className="border-t border-[#6366F1]/10 py-8 px-6 bg-[#0B1120]">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-[#475569]">
