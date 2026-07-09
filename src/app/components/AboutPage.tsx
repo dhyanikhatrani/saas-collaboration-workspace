@@ -74,7 +74,7 @@ export default function AboutPage() {
                   Contact us
                   <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                 </button>
-                <button onClick={() => handleNav("/", "features")} className="border border-[#6366F1]/25 text-[#94A3B8] hover:text-white hover:border-[#6366F1]/50 px-6 py-3 rounded-xl font-medium transition-all">
+                <button onClick={() => navigate("/features")} className="border border-[#6366F1]/25 text-[#94A3B8] hover:text-white hover:border-[#6366F1]/50 px-6 py-3 rounded-xl font-medium transition-all">
                   Explore features
                 </button>
               </div>

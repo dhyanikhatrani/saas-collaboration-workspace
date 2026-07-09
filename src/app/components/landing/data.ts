@@ -10,9 +10,9 @@ import {
 } from "lucide-react";
 
 export const NAV_LINKS = [
-  { label: "Features", target: "features" },
-  { label: "Collaboration", target: "collaboration" },
   { label: "About", target: "about" },
+  { label: "Collaboration", target: "collaboration" },
+  { label: "Features", target: "features" },
   { label: "Contact", target: "contact" },
 ];
 
