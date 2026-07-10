@@ -7,11 +7,11 @@ import { Zap, Eye, EyeOff, ArrowRight, Github, Chrome, Check } from "lucide-reac
 const STEPS = ["Account", "Workspace", "Invite"];
 
 const BENEFITS = [
-  "Real-time messaging & threads",
-  "Notion-style document editor",
-  "500+ app integrations",
+  "Real-time messaging ",
+  "Workspace Management",
+  "Channel Collaboration",
+  "Smart Notifications",
   "Advanced analytics dashboard",
-  "SOC 2 compliant & GDPR ready",
 ];
 
 export default function RegisterPage() {
@@ -74,7 +74,7 @@ export default function RegisterPage() {
 
           <div className="mb-12">
             <h2 className="text-3xl font-bold text-white mb-4 leading-tight">Everything your team needs to move fast</h2>
-            <p className="text-[#94A3B8] leading-relaxed">Join 12,000+ teams that replaced 5 tools with WorkSync and never looked back.</p>
+            <p className="text-[#94A3B8] text-sm leading-relaxed">WorkSync unifies conversations, documents, and action items into one elegant workspace so teams can move from idea to execution without friction.</p>
           </div>
 
           <ul className="space-y-3">
@@ -89,23 +89,7 @@ export default function RegisterPage() {
           </ul>
         </div>
 
-        <div className="relative z-10">
-          <div className="bg-[#1E293B]/60 rounded-2xl border border-[#6366F1]/15 p-5 backdrop-blur-sm">
-            <div className="flex gap-1 mb-3">
-              {[...Array(5)].map((_, i) => <div key={i} className="w-3 h-3 rounded-full" style={{background: '#F59E0B'}} />)}
-            </div>
-            <p className="text-[#CBD5E1] text-sm leading-relaxed mb-4">"We cut our tool subscriptions from 8 down to 2. WorkSync is the only workspace platform that actually gets our workflow."</p>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center">
-                <span className="text-white text-xs font-bold">LK</span>
-              </div>
-              <div>
-                <div className="text-white text-sm font-medium">Lena Kovacs</div>
-                <div className="text-[#475569] text-xs">COO, Apex Systems</div>
-              </div>
-            </div>
-          </div>
-        </div>
+       
       </div>
 
       {/* Right panel */}
@@ -147,7 +131,7 @@ export default function RegisterPage() {
                     <h1 className="text-white font-bold mb-1" style={{fontSize: '22px'}}>Create your account</h1>
                     <p className="text-[#94A3B8] text-sm">Free forever, no credit card required</p>
                   </div>
-
+{/* 
                   <div className="grid grid-cols-2 gap-3 mb-5">
                     <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all">
                       <Chrome size={16} /> Google
@@ -155,13 +139,13 @@ export default function RegisterPage() {
                     <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all">
                       <Github size={16} /> GitHub
                     </button>
-                  </div>
+                  </div> */}
 
-                  <div className="flex items-center gap-3 mb-5">
+                  {/* <div className="flex items-center gap-3 mb-5">
                     <div className="flex-1 h-px bg-[#263148]" />
                     <span className="text-[#475569] text-xs">or with email</span>
                     <div className="flex-1 h-px bg-[#263148]" />
-                  </div>
+                  </div> */}
 
                   <form onSubmit={handleNext} className="space-y-4">
                     <div>

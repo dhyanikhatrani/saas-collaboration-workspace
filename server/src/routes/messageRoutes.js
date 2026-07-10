@@ -104,23 +104,46 @@ router.patch('/:messageId/seen', authMiddleware, async (req, res) => {
       return res.status(200).json({ success: true, message });
     }
 
-    if (!message.channel) {
-      return res.status(400).json({ message: 'Seen receipts are only supported for channel messages.' });
+    let updatedMessage;
+    const io = req.app.get('io');
+
+    if (message.channel) {
+      await ensureChannelMemberAccess(req.user.id, message.channel);
+      updatedMessage = await Message.findByIdAndUpdate(
+        message._id,
+        {
+          $addToSet: { seenBy: req.user.id },
+          $set: { status: 'seen', seenAt: new Date() },
+        },
+        { new: true }
+      ).populate('sender', 'name email');
+
+      io.to(`channel:${updatedMessage.channel.toString()}`).emit('message-seen', updatedMessage);
+    } else if (message.conversation) {
+      const conversation = await Conversation.findById(message.conversation);
+      if (!conversation || !conversation.participants.some((participantId) => participantId.toString() === req.user.id)) {
+        const error = new Error('You do not have access to this conversation.');
+        error.statusCode = 403;
+        throw error;
+      }
+
+      updatedMessage = await Message.findByIdAndUpdate(
+        message._id,
+        {
+          $addToSet: { seenBy: req.user.id },
+          $set: { status: 'seen', seenAt: new Date() },
+        },
+        { new: true }
+      ).populate('sender', 'name email');
+
+      io.to(`conversation:${updatedMessage.conversation.toString()}`).emit('message-seen', updatedMessage);
+    } else {
+      return res.status(400).json({ message: 'Seen receipts are only supported for channel or conversation messages.' });
     }
 
-    await ensureChannelMemberAccess(req.user.id, message.channel);
-
-    const updatedMessage = await Message.findByIdAndUpdate(
-      message._id,
-      {
-        $addToSet: { seenBy: req.user.id },
-        $set: { status: 'seen', seenAt: new Date() },
-      },
-      { new: true }
-    ).populate('sender', 'name email');
-
-    const io = req.app.get('io');
-    io.to(`channel:${updatedMessage.channel.toString()}`).emit('message-seen', updatedMessage);
+    if (updatedMessage.sender?._id) {
+      io.to(updatedMessage.sender._id.toString()).emit('message-seen', updatedMessage);
+    }
 
     res.status(200).json({ success: true, message: updatedMessage });
   } catch (error) {

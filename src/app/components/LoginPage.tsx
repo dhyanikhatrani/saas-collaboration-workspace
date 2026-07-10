@@ -96,21 +96,21 @@ export default function LoginPage() {
 
             {/* Social login buttons */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-              <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all group">
+              {/* <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all group">
                 <Chrome size={16} className="group-hover:text-[#6366F1] transition-colors" />
                 Google
-              </button>
-              <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all group">
+              </button> */}
+              {/* <button className="flex items-center justify-center gap-2 bg-[#263148] hover:bg-[#2E3A52] border border-[#6366F1]/15 rounded-xl py-2.5 text-sm text-[#94A3B8] hover:text-white transition-all group">
                 <Github size={16} className="group-hover:text-white transition-colors" />
                 GitHub
-              </button>
+              </button> */}
             </div>
 
-            <div className="flex items-center gap-3 mb-6">
+            {/* <div className="flex items-center gap-3 mb-6">
               <div className="flex-1 h-px bg-[#263148]" />
               <span className="text-[#475569] text-xs">or continue with email</span>
               <div className="flex-1 h-px bg-[#263148]" />
-            </div>
+            </div> */}
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div>

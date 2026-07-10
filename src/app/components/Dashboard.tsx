@@ -482,6 +482,38 @@ export default function Dashboard() {
 
   const isUserOnline = (userId: string) => onlineUserIds.includes(userId?.toString());
 
+  const markMessageSeen = async (message: any) => {
+    if (!message?.id) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const storedUser = getStoredUser();
+      const currentUserId = storedUser?._id || storedUser?.id || "";
+      if (!currentUserId) return;
+
+      const senderId = message.senderId || message.sender?._id || message.sender?.id || "";
+      const isOwnMessage = senderId && currentUserId && senderId.toString() === currentUserId.toString();
+      const isDeleted = Boolean(message.isDeleted);
+      const isSeen = message.status === "seen" || (Array.isArray(message.seenBy) && message.seenBy.some((id: any) => id?.toString() === currentUserId.toString()));
+
+      if (isOwnMessage || isDeleted || isSeen) return;
+
+      await axios.patch(
+        `http://localhost:5000/api/messages/${message.id}/seen`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    } catch (error) {
+      console.debug("Unable to mark channel message as seen", error);
+    }
+  };
+
   const markMessagesSeenInChannel = async (channelId: string, messageList: any[] = []) => {
     if (!channelId || !messageList.length) return;
 
@@ -502,15 +534,7 @@ export default function Dashboard() {
       });
 
       for (const message of pendingMessages) {
-        await axios.patch(
-          `http://localhost:5000/api/messages/${message.id}/seen`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        await markMessageSeen(message);
       }
     } catch (error) {
       console.debug("Unable to mark channel messages as seen", error);
@@ -559,7 +583,11 @@ export default function Dashboard() {
         }
       );
 
-      setDmMessages(res.data.map((msg: any) => mapServerMessage(msg)));
+      const mappedMessages = res.data.map((msg: any) => mapServerMessage(msg));
+      setDmMessages(mappedMessages);
+      for (const message of mappedMessages) {
+        await markMessageSeen(message);
+      }
     } catch (error) {
       console.error("Failed to load direct messages", error);
     }
@@ -1307,13 +1335,15 @@ useEffect(() => {
 
     socketInstance.on("new-message", (newMessage: any) => {
       if (newMessage?.channel && newMessage.channel === activeChannelRef.current) {
+        const mappedMessage = mapServerMessage(newMessage);
         setMessages((prev: any) => {
           const id = newMessage._id || newMessage.id;
           if (prev.some((message: any) => message.id === id)) {
             return prev;
           }
-          return [...prev, mapServerMessage(newMessage)];
+          return [...prev, mappedMessage];
         });
+        void markMessageSeen(mappedMessage);
       }
     });
 
@@ -1322,13 +1352,15 @@ useEffect(() => {
         newMessage?.conversation &&
         newMessage.conversation === activeConversationRef.current
       ) {
+        const mappedMessage = mapServerMessage(newMessage);
         setDmMessages((prev: any) => {
           const id = newMessage._id || newMessage.id;
           if (prev.some((message: any) => message.id === id)) {
             return prev;
           }
-          return [...prev, mapServerMessage(newMessage)];
+          return [...prev, mappedMessage];
         });
+        void markMessageSeen(mappedMessage);
       }
     });
 
